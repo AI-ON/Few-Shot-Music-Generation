@@ -38,7 +38,7 @@ See Related Work section of the proposal.
 
 ## Contribute
 
-* Please begin by reading papers from the [Reading List](https://github.com/AI-ON/Few-Shot-Music-Generation/blob/master/README.md) to familiarize yourself with work in this area.
+* Please begin by reading papers from the [Reading List](https://github.com/AI-ON/Few-Shot-Music-Generation/blob/master/READING_LIST.md) to familiarize yourself with work in this area.
 
 More details on contributing code will be posted soon.
 
