@@ -4,7 +4,7 @@
 
 * Tagline: Learning a generative model for music data using a small amount of examples.
 * Date: December 2017
-* Category: Applied Research
+* Category: Fundamental Research
 * Author(s): [Hugo Larochelle](https://github.com/larocheh), [Chelsea Finn](https://github.com/cbfinn), [Sachin Ravi](https://github.com/sachinravi14)
 
 ## Project Status
@@ -13,7 +13,7 @@
 
 ## Community Links
 
-* [Project Slack](https://few-shot-music-gen.slack.com)
+* [Project Slack](https://few-shot-music-gen.slack.com/join/shared_invite/enQtMjgwMTA0NTA3MzQ3LTA3MTc3M2E4MjEyNDlhZDNlMTU2ZmUyMmNmMDlhYmQ2ZmFkMDRiZTAzZDJmYmYwYmE0NjRmZGMyMmYxOWEzMWU)
 * [Project Mailing List](https://groups.google.com/forum/#!forum/few-shot-music-generation)
 
 ## Problem description:
