@@ -31,3 +31,5 @@
 * [Modeling Temporal Dependencies in High-Dimensional Sequences: Application to Polyphonic Music Generation and Transcription](http://www-etud.iro.umontreal.ca/~boulanni/ICML2012.pdf)
 * [Sequence Tutor: Conservative Fine-Tuning of Sequence Generation Models with KL-control](https://arxiv.org/abs/1611.02796)
 * [Counterpoint by Convolution](https://openreview.net/forum?id=r1Usiwcex)
+* [Hierarchical Variational Autoencoders for Music](https://nips2017creativity.github.io/doc/Hierarchical_Variational_Autoencoders_for_Music.pdf)
+
