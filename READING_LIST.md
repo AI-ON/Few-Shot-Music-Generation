@@ -33,3 +33,7 @@
 * [Counterpoint by Convolution](https://openreview.net/forum?id=r1Usiwcex)
 * [Hierarchical Variational Autoencoders for Music](https://nips2017creativity.github.io/doc/Hierarchical_Variational_Autoencoders_for_Music.pdf)
 
+## On MIDI files
+
+* [ISMIR 2017 Tutorial: Leveraging MIDI Files for Music Information Retrieval](https://youtu.be/iZt7tpYR6MI)
+[[Slides](http://colinraffel.com/talks/ismir2017leveraging.pdf)]
