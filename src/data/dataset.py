@@ -45,6 +45,8 @@ class Dataset(object):
             for artist in dirs:
                 songs = os.listdir(os.path.join(root, artist))
                 songs = [song for song in songs if not os.path.isdir(song)]
+                # filter out songs if they can't be loaded/parsed
+                songs = [song for song in songs if loader(song) is not None]
                 if len(songs) >= support_size + query_size:
                     artist_obj = Artist(name=artist, songs=songs)
                     artists.append(artist_obj)
