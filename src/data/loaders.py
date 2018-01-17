@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 """A module for lyrics and MIDI dataset loaders."""
-import os 
+import os
 import numpy as np
 
 
@@ -28,8 +28,7 @@ def tokenize_midi_file(filepath):
         filepath (str): path to the lyrics file. e.g.
             "/home/user/freemidi_data/Tool/lateralus.mid"
     """
-    midi_file = pretty_midi.PrettyMIDI(filepath)
-    return None
+    raise NotImplementedError
 
 
 class LyricsLoader(object):
