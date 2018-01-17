@@ -2,8 +2,13 @@
 """A dataset class lyrics and MIDI data for the few-shot-music-gen project
 """
 import os
+import logging
+import time
 
 import numpy as np
+
+
+log = logging.getLogger('few-shot')
 
 
 class Dataset(object):
@@ -23,9 +28,12 @@ class Dataset(object):
             csvs already exist, the sampler uses the splits from those files.
         cache (bool): if true, caches the loaded/parsed songs in memory.
             Otherwise it loads and parses songs on every episode.
+        min_songs (int): the minimum number of songs which an artist must have.
+            If they don't have `min_songs` songs, they will not be present in
+            the dataset.
     """
     def __init__(self, root, split, loader, split_proportions=(8,1,1),
-            persist=True, cache=True):
+            persist=True, cache=True, min_songs=9):
         self.root = root
         self.cache = cache
         self.cache_data = {}
@@ -42,22 +50,24 @@ class Dataset(object):
                     dirs.append(artist)
             artists = []
             skipped_count = 0
-            for artist in dirs:
+            num_dirs = len(dirs)
+            last_log = 0
+            for artist_index, artist in enumerate(dirs):
+                # log progress every second
+                if time.time() - last_log >= 1:
+                    log.info("Preprocessing data. %s%%" % int(100*artist_index/num_dirs))
+                    last_log = time.time()
                 songs = os.listdir(os.path.join(root, artist))
                 songs = [song for song in songs if not os.path.isdir(song)]
-                # filter out songs if they can't be loaded/parsed
-                songs = [song for song in songs if loader(song) is not None]
-                if len(songs) >= support_size + query_size:
+                if len(songs) >= min_songs:
                     artists.append(artist)
                 else:
                     skipped_count += 1
             if skipped_count > 0:
-                print("%s artists don't have K+K'=%s songs. Using %s artists" % (
-                    skipped_count, support_size + query_size, len(artists)))
-            # normalize the splits to sum to 1
-            artist_proportion = sum(split_proportions) * len(artists)
-            train_count = int(float(split_proportions[0]) / artist_proportion)
-            val_count = int(float(split_proportions[1]) / artist_proportion)
+                log.info("%s artists don't have K+K'=%s songs. Using %s artists" % (
+                    skipped_count, min_songs, len(artists)))
+            train_count = int(float(split_proportions[0]) / sum(split_proportions) * len(artists))
+            val_count = int(float(split_proportions[1]) / sum(split_proportions) * len(artists))
             np.random.shuffle(artists)
             if persist:
                 train_csv = open(os.path.join(root, 'train.csv'), 'w')

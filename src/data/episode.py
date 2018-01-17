@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 import os
 import time
+import logging
+
 import numpy as np
 
 
@@ -31,7 +33,7 @@ class SQSampler(object):
         if self.cache and artist in self.songs:
             songs = self.songs[artist]
         else:
-            artist_path = os.path.join(root, artist)
+            artist_path = os.path.join(self.root, artist)
             songs = os.listdir(artist_path)
             songs = [song for song in songs if not os.path.isdir(song)]
             if self.cache:
@@ -52,7 +54,7 @@ class EpisodeSampler(object):
         self.support_size = support_size
         self.query_size = query_size
         self.max_len = max_len
-        self.sq_sampler = SQSampler(root, support_size, query_size)
+        self.sq_sampler = SQSampler(dataset.root, support_size, query_size)
 
     def __len__(self):
         return len(self.data)
@@ -61,8 +63,8 @@ class EpisodeSampler(object):
         return 'EpisodeSampler("%s", "%s")' % (self.root, self.split)
 
     def get_episode(self):
-        support = np.zeros((self.batch_size, self.support_size, max_len))
-        query = np.zeros((self.batch_size, self.query_size, max_len))
+        support = np.zeros((self.batch_size, self.support_size, self.max_len))
+        query = np.zeros((self.batch_size, self.query_size, self.max_len))
         artists = np.random.choice(self.dataset, size=self.batch_size, replace=False)
         for batch_index, artist in enumerate(artists):
             support_songs, query_songs = self.sq_sampler.sample(artist)
@@ -71,5 +73,5 @@ class EpisodeSampler(object):
                 support[batch_index,support_index,:] = parsed_song
             for query_index, song in enumerate(query_songs):
                 parsed_song = self.dataset.load(artist, song)
-                support[batch_index,query_index,:] = parsed_song
+                query[batch_index,query_index,:] = parsed_song
         return Episode(support, query)

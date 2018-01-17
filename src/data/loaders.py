@@ -2,6 +2,9 @@
 """A module for lyrics and MIDI dataset loaders."""
 import os
 import numpy as np
+import logging
+
+log = logging.getLogger("few-shot")
 
 
 def tokenize_lyrics_file(filepath, max_len):
