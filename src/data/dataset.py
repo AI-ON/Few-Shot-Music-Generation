@@ -48,8 +48,7 @@ class Dataset(object):
                 # filter out songs if they can't be loaded/parsed
                 songs = [song for song in songs if loader(song) is not None]
                 if len(songs) >= support_size + query_size:
-                    artist_obj = Artist(name=artist, songs=songs)
-                    artists.append(artist_obj)
+                    artists.append(artist)
                 else:
                     skipped_count += 1
             if skipped_count > 0:
