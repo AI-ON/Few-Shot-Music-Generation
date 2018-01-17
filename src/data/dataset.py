@@ -21,6 +21,8 @@ class Dataset(object):
         persist (bool): persists the train/val/test split information in csv
             files in `root`, so future runs will use the same splits. If those
             csvs already exist, the sampler uses the splits from those files.
+        cache (bool): if true, caches the loaded/parsed songs in memory.
+            Otherwise it loads and parses songs on every episode.
     """
     def __init__(self, root, split, loader, split_proportions=(8,1,1),
             persist=True, cache=True):
@@ -51,6 +53,7 @@ class Dataset(object):
             if skipped_count > 0:
                 print("%s artists don't have K+K'=%s songs. Using %s artists" % (
                     skipped_count, support_size + query_size, len(artists)))
+            # normalize the splits to sum to 1
             artist_proportion = sum(split_proportions) * len(artists)
             train_count = int(float(split_proportions[0]) / artist_proportion)
             val_count = int(float(split_proportions[1]) / artist_proportion)
@@ -73,6 +76,12 @@ class Dataset(object):
                 self.artists = artists[train_count+val_count:]
 
     def load(self, song, artist):
+        """Read and parse `song` by `artist`.
+
+        Arguments:
+            song (str): the name of the song file. e.g. `"lateralus.txt"`
+            artist (str): the name of the artist directory. e.g. `"tool"`
+        """
         if self.cache and (song, artist) in self.cache_data:
             return self.cache_data[(song, artist)]
         else:
