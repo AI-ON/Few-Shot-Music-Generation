@@ -33,7 +33,7 @@ class Dataset(object):
             the dataset.
     """
     def __init__(self, root, split, loader, split_proportions=(8,1,1),
-            persist=True, cache=True, min_songs=9):
+            persist=True, cache=True, min_songs=0):
         self.root = root
         self.cache = cache
         self.cache_data = {}
