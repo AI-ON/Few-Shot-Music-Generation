@@ -35,7 +35,6 @@ class SQSampler(object):
         else:
             artist_path = os.path.join(self.root, artist)
             songs = os.listdir(artist_path)
-            songs = [song for song in songs if not os.path.isdir(song)]
             if self.cache:
                 self.songs[artist] = songs
         sample = np.random.choice(

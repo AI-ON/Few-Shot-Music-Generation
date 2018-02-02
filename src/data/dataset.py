@@ -58,7 +58,6 @@ class Dataset(object):
                     log.info("Preprocessing data. %s%%" % int(100*artist_index/num_dirs))
                     last_log = time.time()
                 songs = os.listdir(os.path.join(root, artist))
-                songs = [song for song in songs if not os.path.isdir(song)]
                 if len(songs) >= min_songs:
                     artists.append(artist)
                 else:
