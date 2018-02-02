@@ -2,8 +2,12 @@
 import os
 import time
 import logging
+import yaml
 
 import numpy as np
+
+from loaders import LyricsLoader, MIDILoader
+from dataset import Dataset
 
 
 class Episode(object):
@@ -74,3 +78,62 @@ class EpisodeSampler(object):
                 parsed_song = self.dataset.load(artist, song)
                 query[batch_index,query_index,:] = parsed_song
         return Episode(support, query)
+
+def load_sampler_from_config(config):
+    """Create an EpisodeSampler from a yaml config."""
+    if isinstance(config, str):
+        config = yaml.load(open(config, 'r'))
+    else:
+        config = yaml.load(config)
+    required_keys = [
+        'dataset_path',
+        'query_size',
+        'support_size',
+        'batch_size',
+        'max_len',
+        'dataset',
+        'split'
+    ]
+    optional_keys = [
+        'train_proportion',
+        'val_proportion',
+        'test_proportion',
+        'persist',
+        'cache'
+    ]
+    for key in required_keys:
+        if key not in config:
+            raise RuntimeError('required config key "%s" not found' % key)
+    props = (
+        config.get('train_proportion', 8),
+        config.get('val_proportion', 1),
+        config.get('test_proportion', 1)
+    )
+    root = config['dataset_path']
+    if config.get('persist'):
+        persist_file_name = '%s_ids.csv' % os.path.join(root, config['dataset'])
+    else:
+        persist_file_name = None
+    if config['dataset'] == 'lyrics':
+        loader = LyricsLoader(
+            config['max_len'],
+            persist_file_name=persist_file_name)
+    elif config['dataset'] == 'midi':
+        loader = MIDILoader(
+            config['max_len'],
+            persist_file_name=persist_file_name)
+    else:
+        raise RuntimeError('unknown dataset "%s"' % config['dataset'])
+    dataset = Dataset(
+        root,
+        config['split'],
+        loader,
+        props,
+        config.get('cache', True),
+        config.get('persist', True))
+    return EpisodeSampler(
+        dataset,
+        config['batch_size'],
+        config['support_size'],
+        config['query_size'],
+        config['max_len'])
