@@ -39,6 +39,9 @@ class SQSampler(object):
         else:
             artist_path = os.path.join(self.root, artist)
             songs = os.listdir(artist_path)
+            if len(songs) < self.query_size + self.support_size:
+                raise RuntimeError('artist "%s" does not have %s+%s songs.' % (
+                    artist, self.query_size, self.support_size))
             if self.cache:
                 self.songs[artist] = songs
         sample = np.random.choice(
