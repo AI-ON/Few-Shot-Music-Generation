@@ -3,12 +3,16 @@
 import os
 import numpy as np
 import logging
+import nltk
 
 log = logging.getLogger("few-shot")
 
 
 def tokenize_lyrics_file(filepath, max_len):
     """Turns a file into a list of "words"
+
+    This tokenizer uses nltk's `word_tokenize`, which requires the punkt
+    tokenizer models. You can download the models with `nltk.download('punkt')`
 
     Arguments:
         filepath (str): path to the lyrics file. e.g.
@@ -17,7 +21,7 @@ def tokenize_lyrics_file(filepath, max_len):
     """
     token_count = 0
     for line in open(filepath, 'r', errors='ignore'):
-        for token in line.split():
+        for token in nltk.word_tokenize(line):
             yield token
             token_count += 1
             if token_count >= max_len:
