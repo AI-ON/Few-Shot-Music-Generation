@@ -9,7 +9,9 @@
 
 ## Project Status
 
-* Brainstorming for datasets phase: Currently collecting ideas for dataset collection for lyrics and MIDI data. See the Issues page for details.
+* ~~Brainstorming for datasets phase: Currently collecting ideas for dataset collection for lyrics and MIDI data. See the Issues page for details.~~
+* ~~Collecting actual data for lyrics and MIDI.~~
+* Decide and implement pre-processing scheme for data (specifically for MIDI).
 
 ## Community Links
 
@@ -22,7 +24,7 @@ See Introduction section of the proposal.
 
 ## Why this problem matters:
 
-See Introduction section of the proposal. 
+See Introduction section of the proposal.
 
 ## How to measure success:
 
@@ -41,5 +43,3 @@ See Related Work section of the proposal.
 * Please begin by reading papers from the [Reading List](https://github.com/AI-ON/Few-Shot-Music-Generation/blob/master/READING_LIST.md) to familiarize yourself with work in this area.
 
 More details on contributing code will be posted soon.
-
-
