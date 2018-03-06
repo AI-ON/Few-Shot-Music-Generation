@@ -7,7 +7,7 @@ import yaml
 import numpy as np
 
 from loaders import LyricsLoader, MIDILoader
-from dataset import Dataset
+from dataset import Dataset, Metadata
 
 
 class Episode(object):
@@ -98,27 +98,28 @@ def load_sampler_from_config(config):
         config.get('test_proportion', 1)
     )
     root = config['dataset_path']
-    if config.get('persist'):
-        persist_file_name = '%s_ids.csv' % os.path.join(root, config['dataset'])
-    else:
-        persist_file_name = None
+    metadata_dir = 'few_shot_metadata_%s_%s' % (config['dataset'], config['max_len'])
+    metadata = Metadata(root, metadata_dir)
     if config['dataset'] == 'lyrics':
-        loader = LyricsLoader(
-            config['max_len'],
-            persist_file_name=persist_file_name)
+        loader = LyricsLoader(config['max_len'], metadata=metadata)
+        parallel = False
     elif config['dataset'] == 'midi':
-        loader = MIDILoader(
-            config['max_len'],
-            persist_file_name=persist_file_name)
+        loader = MIDILoader(config['max_len'])
+        parallel = True
     else:
         raise RuntimeError('unknown dataset "%s"' % config['dataset'])
     dataset = Dataset(
         root,
         config['split'],
         loader,
-        props,
-        config.get('cache', True),
-        config.get('persist', True))
+        metadata,
+        split_proportions=props,
+        cache=config.get('cache', True),
+        persist=config.get('persist', True),
+        validate=config.get('validate', True),
+        min_songs=config['support_size']+config['query_size'],
+        parallel=parallel
+    )
     return EpisodeSampler(
         dataset,
         config['batch_size'],
