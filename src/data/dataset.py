@@ -100,7 +100,10 @@ class Dataset(object):
 
             for artist in os.listdir(root):
                 if os.path.isdir(os.path.join(root, artist)):
-                    dirs.append(artist)
+                    songs = os.listdir(os.path.join(root, artist))
+                    songs = [song for song in songs if loader.is_song(song)]
+                    if len(songs) > 0:
+                        dirs.append(artist)
 
             num_dirs = len(dirs)
 
