@@ -67,7 +67,7 @@ class Dataset(object):
             the dataset.
     """
     def __init__(self, root, split, loader, metadata, split_proportions=(8,1,1),
-            persist=True, cache=True, validate=True, min_songs=0):
+            persist=True, cache=True, validate=True, min_songs=0, parallel=False):
         self.root = root
         self.cache = cache
         self.cache_data = {}
@@ -123,7 +123,11 @@ class Dataset(object):
                         valid_songs[artist] = set()
                     songs_to_validate = [song for song in songs if song not in valid_songs[artist]]
                     song_files = [os.path.join(root, artist, song) for song in songs_to_validate]
-                    validated = itertools.compress(songs_to_validate, pool.map(loader.validate, song_files))
+                    if parallel:
+                        mapped = pool.map(loader.validate, song_files)
+                    else:
+                        mapped = map(loader.validate, song_files)
+                    validated = itertools.compress(songs_to_validate, mapped)
                     for song in validated:
                         song_file = os.path.join(root, artist, song)
                         if persist:
