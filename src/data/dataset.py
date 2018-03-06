@@ -136,6 +136,8 @@ class Dataset(object):
                     all_artists.append(artist)
                 else:
                     skipped_count += 1
+            pool.close()
+            pool.join()
             if skipped_count > 0:
                 log.info("%s artists don't have K+K'=%s songs. Using %s artists" % (
                     skipped_count, min_songs, len(all_artists)))
