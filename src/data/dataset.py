@@ -9,6 +9,34 @@ import numpy as np
 
 
 log = logging.getLogger('few-shot')
+logging.basicConfig(level=logging.INFO)
+
+
+class Metadata(object):
+    def __init__(self, root, name):
+        self.dir = os.path.join(root, 'few_shot_metadata_%s' % name)
+        self.open_files = {}
+        if not os.path.exists(self.dir):
+            os.makedirs(self.dir)
+
+    def exists(self, filename):
+        return os.path.exists(os.path.join(self.dir, filename))
+
+    def lines(self, filename):
+        if self.exists(filename):
+            for line in open(os.path.join(self.dir, filename), 'r'):
+                yield line
+        else:
+            return []
+
+    def write(self, filename, line):
+        if filename not in self.open_files:
+            self.open_files[filename] = open(os.path.join(self.dir, filename), 'a')
+        self.open_files[filename].write(line)
+
+    def close(self):
+        for filename in self.open_files:
+            self.open_files[filename].close()
 
 
 class Dataset(object):
@@ -19,8 +47,8 @@ class Dataset(object):
         root (str): the root directory of the dataset
         split ("train", "val", or "test"): the split of the dataset which
             this object represents.
-        loader (LyricsLoader or MIDILoader): the object used for reading and
-            parsing
+        loader (Loader): the object used for reading and parsing
+        metadata (Metadata): the object used for persisting metadata
         split_proportions (tuple of three numbers): the unnormalized
             (train, val, test) split.
         persist (bool): persists the train/val/test split information in csv
