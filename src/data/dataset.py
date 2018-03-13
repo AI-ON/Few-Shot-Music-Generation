@@ -82,7 +82,10 @@ class Dataset(object):
         artist_in_split = []
 
         # If we're both validating and using persistence, load any validation
-        # data from disk.
+        # data from disk. The format of the validation file is just a CSV
+        # with two entries: artist and song. The artist is the name of the
+        # artist (i.e. the directory (e.g. 'K_s Choice')) and the song is
+        # the song file name (e.g. 'ironflowers.mid').
         if validate and persist:
             for line in self.metadata.lines(valid_songs_file):
                 artist, song = line.rstrip('\n').split(',', 1)
