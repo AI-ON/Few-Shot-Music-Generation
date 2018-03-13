@@ -6,7 +6,8 @@ import yaml
 
 import numpy as np
 
-from loaders import LyricsLoader, MIDILoader
+from midi_loader import MIDILoader
+from lyrics_loader import LyricsLoader
 from dataset import Dataset, Metadata
 
 
