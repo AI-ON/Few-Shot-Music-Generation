@@ -101,8 +101,6 @@ class Dataset(object):
             dirs = []
             all_artists = []
             skipped_count = 0
-            last_log = 0
-            last_log_percent = None
             pool = multiprocessing.Pool(multiprocessing.cpu_count())
 
             for artist in os.listdir(root):
@@ -113,6 +111,7 @@ class Dataset(object):
                         dirs.append(artist)
 
             num_dirs = len(dirs)
+            progress_logger = ProgressLogger(num_dirs)
 
             for artist_index, artist in enumerate(dirs):
                 songs = os.listdir(os.path.join(root, artist))
@@ -120,12 +119,7 @@ class Dataset(object):
                 songs = [song for song in songs if loader.is_song(song)]
                 # populate `valid_songs[artist]`
                 if validate:
-                    # log progress at most every second
-                    if time.time() - last_log >= 1:
-                        if last_log_percent != '%.2f' % (100*artist_index/num_dirs):
-                            last_log_percent = '%.2f' % (100*artist_index/num_dirs)
-                            log.info("Preprocessing data. %s%%" % last_log_percent)
-                            last_log = time.time()
+                    progress_logger.maybe_log(artist_index)
                     if artist not in valid_songs:
                         valid_songs[artist] = set()
                     songs_to_validate = [song for song in songs if song not in valid_songs[artist]]
@@ -202,3 +196,18 @@ class ArtistDataset(object):
 
     def __getitem__(self, index):
         return self.songs[index]
+
+
+class ProgressLogger(object):
+    def __init__(self, num_dirs):
+        self.last_log = 0
+        self.last_log_percent = None
+        self.num_dirs = num_dirs
+
+    def maybe_log(self, index):
+        # log progress at most every second
+        if time.time() - self.last_log >= 1:
+            if self.last_log_percent != '%.2f' % (100*index/self.num_dirs):
+                self.last_log_percent = '%.2f' % (100*index/self.num_dirs)
+                log.info("Preprocessing data. %s%%" % self.last_log_percent)
+                self.last_log = time.time()
