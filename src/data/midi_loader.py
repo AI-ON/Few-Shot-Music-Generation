@@ -1,19 +1,15 @@
 #!/usr/bin/python3
-"""A module for lyrics and MIDI dataset loaders.
-
-There are two loaders: MIDILoader and LyricsLoader. These loaders are
-essentially file readers which additionally turn the data into a series of
-integer tokens.
+"""A module for the MIDI dataset loader.
 """
-import os
-import numpy as np
 import logging
-import nltk
 import string
 import collections
 import math
 from operator import itemgetter
+
 import pretty_midi
+
+from base_loader import Loader
 
 _SUSTAIN_ON = 0
 _SUSTAIN_OFF = 1
@@ -36,56 +32,6 @@ PROGRAMS_PER_FAMILY = 8
 
 
 log = logging.getLogger("few-shot")
-
-
-class Loader(object):
-    """A class for turning data into a sequence of tokens.
-    """
-    def __init__(self, max_len, dtype=np.int32, persist=True):
-        self.max_len = max_len
-        self.dtype = dtype
-        self.persist = persist
-
-    def is_song(self, filepath):
-        raise NotImplementedError
-
-    def read(self, filepath):
-        raise NotImplementedError
-
-    def tokenize(self, data):
-        raise NotImplementedError
-
-    def detokenize(self, numpy_data):
-        raise NotImplementedError
-
-    def validate(self, filepath):
-        try:
-            self.load(filepath)
-            return True
-        except OSError:
-            return False
-        except KeyError:
-            return False
-        except EOFError:
-            return False
-        except IndexError:
-            return False
-        except ValueError:
-            return False
-
-    def load(self, filepath):
-        npfile = '%s.%s.npy' % (filepath, self.max_len)
-        if self.persist and os.path.isfile(npfile):
-            return np.load(npfile).astype(self.dtype)
-        else:
-            data = self.read(filepath)
-            tokens = self.tokenize(data)
-            numpy_tokens = np.zeros(self.max_len, dtype=self.dtype)
-            for token_index in range(min(self.max_len, len(tokens))):
-                numpy_tokens[token_index] = tokens[token_index]
-            if self.persist:
-                np.save(npfile, numpy_tokens)
-            return numpy_tokens
 
 
 class MIDILoader(Loader):
@@ -168,84 +114,6 @@ class MIDILoader(Loader):
                     instr.notes.append(note)
                 midi.instruments.append(instr)
         return midi
-
-
-class LyricsLoader(Loader):
-    """Objects of this class parse lyrics files and persist word IDs.
-
-    Arguments:
-        max_len (int): maximum length of sequence of words
-        metadata (Metadata): a Metadata object
-        tokenizer (callable): a callable which takes a file name and returns a
-            list of words. Defaults to nltk's `word_tokenize`, which requires
-            the punkt tokenizer models. You can download the models with
-            `nltk.download('punkt')`
-        persist (bool): if true, the tokenizer will persist the IDs of each word
-            to a file. If the file already exists, the tokenizer will bootstrap
-            from the file.
-    """
-    def __init__(self, max_len, metadata, tokenizer=nltk.word_tokenize,
-            persist=True, dtype=np.int32):
-        super(LyricsLoader, self).__init__(max_len, dtype=dtype)
-        self.tokenizer = tokenizer
-        self.metadata = metadata
-        self.word_to_id = {}
-        self.id_to_word = {}
-        self.highest_word_id = -1
-        # read persisted word ids
-        if persist:
-            log.info('Loading lyrics metadata...')
-            for line in self.metadata.lines('word_ids.csv'):
-                row = line.rstrip('\n').split(',', 1)
-                word_id = int(row[0])
-                self.word_to_id[row[1]] = word_id
-                self.id_to_word[word_id] = row[1]
-                if word_id > self.highest_word_id:
-                    self.highest_word_id = word_id
-
-    def is_song(self, filepath):
-        return filepath.endswith('.txt')
-
-    def read(self, filepath):
-        """Read a file.
-
-        Arguments:
-            filepath (str): path to the lyrics file. e.g.
-                "/home/user/lyrics_data/tool/lateralus.txt"
-        """
-        return ''.join(open(filepath, 'r', errors='ignore').readlines())
-
-    def tokenize(self, raw_lyrics):
-        """Turns a string of lyrics data into a numpy array of int "word" IDs.
-
-        Arguments:
-            raw_lyrics (str): Stringified lyrics data
-        """
-        tokens = []
-        for token in self.tokenizer(raw_lyrics):
-            if token not in self.word_to_id:
-                self.highest_word_id += 1
-                self.word_to_id[token] = self.highest_word_id
-                self.id_to_word[self.highest_word_id] = token
-                if self.persist:
-                    self.metadata.write(
-                        'word_ids.csv',
-                        '%s,%s\n' % (self.highest_word_id, token)
-                    )
-            tokens.append(self.word_to_id[token])
-        return tokens
-
-    def detokenize(self, numpy_data):
-        ret = ''
-        for token in numpy_data:
-            word = self.id_to_word[token]
-            if word == "n't":
-                ret += word
-            elif word not in string.punctuation and not word.startswith("'"):
-                ret += " " + word
-            else:
-                ret += word
-        return "".join(ret).strip()
 
 
 def resolve_pitch_clashes(sorted_notes):
