@@ -183,6 +183,11 @@ def get_event_list(midi_notes, num_velocity_bins=32):
         program_family = (program - MIN_MIDI_PROGRAM) // PROGRAMS_PER_FAMILY + 1
         if not is_off and velocity_bin != current_velocity_bin[program_family]:
             current_velocity_bin[program_family] = velocity_bin
+            # NOTE: velocity is set per-program-family, but that's not strictly
+            # necessary. We could have set-velocity events set the velocity
+            # for all instruments. This would change the required number of
+            # set-velocity events, but it would reduce the dimensionality of
+            # the encoding.
             events.append((VELOCITY, velocity_bin, program_family))
         if not is_off:
             events.append((NOTE_ON, note_pitch, program_family))
