@@ -65,22 +65,26 @@ class Dataset(object):
         min_songs (int): the minimum number of songs which an artist must have.
             If they don't have `min_songs` songs, they will not be present in
             the dataset.
+        valid_songs_file (str): the name file which contains persists a list
+            of valid songs.
     """
     def __init__(self, root, split, loader, metadata, split_proportions=(8,1,1),
-            persist=True, cache=True, validate=True, min_songs=0, parallel=False):
+            persist=True, cache=True, validate=True, min_songs=0, parallel=False,
+            valid_songs_file='valid_songs.csv'):
         self.root = root
         self.cache = cache
         self.cache_data = {}
         self.loader = loader
         self.metadata = metadata
         self.artists = []
+        self.valid_songs_file = valid_songs_file
         valid_songs = {}
         artist_in_split = []
 
         # If we're both validating and using persistence, load any validation
         # data from disk.
         if validate and persist:
-            for line in self.metadata.lines('valid_songs.csv'):
+            for line in self.metadata.lines(valid_songs_file):
                 [artist, song] = line.rstrip('\n').split(',', 1)
                 if artist not in valid_songs:
                     valid_songs[artist] = set()
@@ -131,7 +135,7 @@ class Dataset(object):
                     for song in validated:
                         song_file = os.path.join(root, artist, song)
                         if persist:
-                            self.metadata.write('valid_songs.csv', '%s,%s\n' % (artist, song))
+                            self.metadata.write(self.valid_songs_file, '%s,%s\n' % (artist, song))
                         valid_songs[artist].add(song)
                 else:
                     valid_songs[artist] = set(songs)
