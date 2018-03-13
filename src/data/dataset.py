@@ -85,7 +85,7 @@ class Dataset(object):
         # data from disk.
         if validate and persist:
             for line in self.metadata.lines(valid_songs_file):
-                [artist, song] = line.rstrip('\n').split(',', 1)
+                artist, song = line.rstrip('\n').split(',', 1)
                 if artist not in valid_songs:
                     valid_songs[artist] = set()
                 valid_songs[artist].add(song)
