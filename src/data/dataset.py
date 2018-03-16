@@ -15,6 +15,9 @@ logging.basicConfig(level=logging.INFO)
 
 
 class Metadata(object):
+    """An object for tracking the metadata associated with a configuration of
+    the sampler.
+    """
     def __init__(self, root, name):
         self.dir = os.path.join(root, 'few_shot_metadata_%s' % name)
         self.open_files = {}
