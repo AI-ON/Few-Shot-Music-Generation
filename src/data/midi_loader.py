@@ -60,10 +60,11 @@ class MIDILoader(Loader):
         tokens = []
         midi_notes = get_notes(midi)
         midi_control_changes = get_control_changes(midi)
-        midi_notes, midi_control_changes = apply_sustain_control_changes(midi_notes,
-            midi_control_changes)
+        midi_notes = apply_sustain_control_changes(midi_notes, midi_control_changes)
         midi_notes = quantize_notes(midi_notes)
-        events = get_event_list(midi_notes)
+        no_drum_notes = remove_drums(midi_notes)
+        no_clash_notes = resolve_pitch_clashes(no_drum_notes)
+        events = get_event_list(no_clash_notes)
         for event_type, event_value, family in events:
             if event_type == NOTE_ON:
                 token = family * 128 + event_value
@@ -116,11 +117,40 @@ class MIDILoader(Loader):
         return midi
 
 
-def resolve_pitch_clashes(sorted_notes):
+def resolve_pitch_clashes(midi_notes):
+    """This function resolve note conflicts resulting from merging instruments
+    of the same class.
+
+    MIDI specifies 16 instrument classes, with 8 instruments per class. For
+    this project, we merge together all instruments for a class into a single
+    instrument. This can create issues if you have multiple instruments of the
+    same class in the same song (e.g. two electric guitars, or a viola and a
+    violin). The conflict occurs when you have two instruments play the same
+    note at the same time. For example, if you have guitar 1 begin note 55 at
+    time-step 100, and then guitar 2 begin note 55 at time-step 101, and then
+    guitar 1 end note 55 at time-step 102, it becomes unclear how to represent
+    that as a single instrument. Does note 55 end at the guitar 1 note end
+    event? Or does it wait until guitar 2 ends? Does it play the overlapping
+    notes as a single note, or does it try to split it into two notes somehow?
+
+    This code solves that problem by allowing the first note to finish. If the
+    duration of the second note extends beyond the duration of the first, the
+    remaining duration will be played after the first note ends.
+
+    Arguments:
+        midi_notes ([(int, int, int, pretty_midi.Note)]): a tuple list of
+            information on the MIDI notes of all instruments in a song. The
+            first element is the quantized start time of the note. The second
+            element is the quantized end time of the note. The third element is
+            the instrument number (refer to the General MIDI spec for more
+            info).
+    """
     num_program_families = int((MAX_MIDI_PROGRAM - MIN_MIDI_PROGRAM + 1) / \
         PROGRAMS_PER_FAMILY)
     no_clash_notes = []
     active_pitch_notes = {}
+
+    sorted_notes = sorted(midi_notes, key=lambda element: element[0:3])
     for program_family in range(num_program_families):
         active_pitch_notes[program_family + 1] = []
 
@@ -142,17 +172,34 @@ def resolve_pitch_clashes(sorted_notes):
 
     return no_clash_notes
 
+def remove_drums(midi_notes):
+    """Removes all drum notes from a sequence of MIDI notes.
+
+    Argument:
+        midi_notes ([(int, int, bool, int, int, pretty_midi.Note)]): a list
+            containing tuples of info on each MIDI note. The first and second
+            elements are discarded. The third element is a boolean representing
+            if the note is a drum or not. The fourth and fifth are the start
+            and end time respectively. The last is the note.
+    """
+    return [(start, end, program, midi_note)
+        for program, instrument, is_drum, start, end, midi_note
+            in midi_notes if not is_drum]
 
 def get_event_list(midi_notes, num_velocity_bins=32):
-    no_drum_notes = [(quantized_start, quantized_end, program, midi_note)
-        for program, instrument, is_drum, quantized_start, quantized_end, midi_note
-            in midi_notes if not is_drum]
-    sorted_no_drum_notes = sorted(no_drum_notes, key=lambda element: element[0:3])
-    no_clash_notes = resolve_pitch_clashes(sorted_no_drum_notes)
+    """Transforms a sequence of MIDI notes into a sequence of events.
 
+    Arguments:
+        midi_notes ([(int, int, int, pretty_midi.Note)]): A list containing
+            info on each MIDI note.
+        num_velocity_bins (int): the number of bins to split the velocity
+            into. The MIDI standardizes on 128 possible values (0-127) but
+            we bucket subranges together to reduce the dimensionality. Must
+            evenly divide into 128.
+    """
     note_on_set = []
     note_off_set = []
-    for index, element in enumerate(no_clash_notes):
+    for index, element in enumerate(midi_notes):
         quantized_start, quantized_end, program, midi_note = element
         note_on_set.append((quantized_start, index, program, False))
         note_off_set.append((quantized_end, index, program, True))
@@ -177,8 +224,8 @@ def get_event_list(midi_notes, num_velocity_bins=32):
             events.append((TIME_SHIFT, step-current_step, 0))
             current_step = step
 
-        note_velocity = no_clash_notes[index][3].velocity
-        note_pitch = no_clash_notes[index][3].pitch
+        note_velocity = midi_notes[index][3].velocity
+        note_pitch = midi_notes[index][3].pitch
         velocity_bin = (note_velocity - MIN_MIDI_VELOCITY) // velocity_bin_size + 1
         program_family = (program - MIN_MIDI_PROGRAM) // PROGRAMS_PER_FAMILY + 1
         if not is_off and velocity_bin != current_velocity_bin[program_family]:
@@ -198,6 +245,18 @@ def get_event_list(midi_notes, num_velocity_bins=32):
 
 
 def quantize_notes(midi_notes, steps_per_second=100):
+    """Quantize MIDI notes into integers. The unit represents a unit of time,
+    determined by `steps_per_second`.
+
+    midi_notes ([(int, int, bool, pretty_midi.Note)]): A list containing tuples
+        of info describing individual MIDI notes in a song. The first element
+        is the MIDI instrument number of the note. The second element is an
+        identifier of the MIDI instrument, unique to all instruments within
+        the song. The third element is a flag indicating whether the instrument
+        is a drum or not. The last element is the note object.
+    steps_per_second (int): The number of steps per second. Which each note
+        gets rounded toward.
+    """
     new_midi_notes = []
 
     for program, instrument, is_drum, midi_note in midi_notes:
@@ -213,6 +272,21 @@ def quantize_notes(midi_notes, steps_per_second=100):
 
 def apply_sustain_control_changes(midi_notes, midi_control_changes,
                                   sustain_control_number=64):
+    """Applies sustain to the MIDI notes by modifying the notes in-place.
+
+    Normally, MIDI note start/end times simply describe e.g. when a piano key
+    is pressed. It's possible that the sound from the note continues beyond
+    the pressing of the note if a sustain on the instrument is active. The
+    activity of sustain on MIDI instruments is determined by certain control
+    events. This function alters the start/end time of MIDI notes with respect
+    to the sustain control messages to mimic sustain.
+
+    Arguments:
+        midi_notes ([(int, int, bool, pretty_midi.Note)]): A list of tuples of
+            info on each MIDI note.
+        midi_control_changes ([(int, int, bool, pretty_midi.ControlChange)]):
+            A list of tuples on each control change event.
+    """
     events = []
     events.extend([(midi_note.start, _NOTE_ON, instrument, midi_note) for
       _1, instrument, _2, midi_note in midi_notes])
@@ -223,6 +297,7 @@ def apply_sustain_control_changes(midi_notes, midi_control_changes,
         if control_change.number != sustain_control_number:
             continue
         value = control_change.value
+        # MIDI spec specifies that >= 64 means ON and < 64 means OFF.
         if value >= 64:
             events.append((control_change.time, _SUSTAIN_ON, instrument,
                            control_change))
@@ -274,23 +349,40 @@ def apply_sustain_control_changes(midi_notes, midi_control_changes,
         for note in instrument:
             note.end = time
 
-    return midi_notes, midi_control_changes
+    return midi_notes
 
 
 def get_control_changes(midi):
+    """Retrieves a list of control change events from a given MIDI song.
+
+    Arguments:
+        midi (PrettyMIDI): The MIDI song.
+    """
     midi_control_changes = []
     for num_instrument, midi_instrument in enumerate(midi.instruments):
         for midi_control_change in midi_instrument.control_changes:
-            midi_control_changes.append((midi_instrument.program, num_instrument,
-                                         midi_instrument.is_drum,
-                                         midi_control_change))
+            midi_control_changes.append((
+                midi_instrument.program,
+                num_instrument,
+                midi_instrument.is_drum,
+                midi_control_change
+            ))
     return midi_control_changes
 
 
 def get_notes(midi):
+    """Retrieves a list of MIDI notes (for all instruments) given a MIDI song.
+
+    Arguments:
+        midi (PrettyMIDI): The MIDI song.
+    """
     midi_notes = []
     for num_instrument, midi_instrument in enumerate(midi.instruments):
         for midi_note in midi_instrument.notes:
-            midi_notes.append((midi_instrument.program, num_instrument,
-                               midi_instrument.is_drum, midi_note))
+            midi_notes.append((
+                midi_instrument.program,
+                num_instrument,
+                midi_instrument.is_drum,
+                midi_note
+            ))
     return midi_notes
