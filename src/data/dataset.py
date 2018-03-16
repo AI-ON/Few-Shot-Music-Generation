@@ -47,6 +47,10 @@ class Metadata(object):
 class Dataset(object):
     """A class for train/val/test sets.
 
+    NOTE/TODO: This object only creates disjoint subsets of the full dataset
+    when persistence is enabled. It might be good to support disjoint subsets
+    when persistence is disabled.
+
     This class is initialized with the following arguments:
     Arguments:
         root (str): the root directory of the dataset
