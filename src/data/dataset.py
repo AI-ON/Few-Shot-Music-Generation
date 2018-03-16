@@ -52,7 +52,10 @@ class Dataset(object):
         loader (Loader): the object used for reading and parsing
         metadata (Metadata): the object used for persisting metadata
         split_proportions (tuple of three numbers): the unnormalized
-            (train, val, test) split.
+            (train, val, test) split. Specifying the split for all three subsets
+            (despite the Dataset object only being initialized for a single
+            subset) is necessary because the dataset will be split and persisted
+            on the first instantiation of the Dataset object.
         persist (bool): persists the train/val/test split information in csv
             files in `root`, so future runs will use the same splits. If those
             csvs already exist, the sampler uses the splits from those files.
