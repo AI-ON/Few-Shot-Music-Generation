@@ -59,7 +59,7 @@ class EpisodeSampler(object):
         query = np.zeros((self.batch_size, self.query_size, self.max_len), dtype=self.dtype)
         artists = np.random.choice(self.dataset, size=self.batch_size, replace=False)
         for batch_index, artist in enumerate(artists):
-            support_songs, query_songs = self.sq_sampler.sample(artist)
+            query_songs, support_songs = self.sq_sampler.sample(artist)
             for support_index, song in enumerate(support_songs):
                 parsed_song = self.dataset.load(artist.name, song)
                 support[batch_index,support_index,:] = parsed_song
