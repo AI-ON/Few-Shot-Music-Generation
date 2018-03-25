@@ -6,6 +6,10 @@ import logging
 import time
 import multiprocessing
 import itertools
+try:
+    from urllib import quote, unquote # python 2
+except ImportError:
+    from urllib.parse import quote, unquote # python 3
 
 import numpy as np
 
@@ -99,6 +103,8 @@ class Dataset(object):
         if validate and persist:
             for line in self.metadata.lines(valid_songs_file):
                 artist, song = line.rstrip('\n').split(',', 1)
+                artist = unquote(artist)
+                song = unquote(song)
                 if artist not in valid_songs:
                     valid_songs[artist] = set()
                 valid_songs[artist].add(song)
@@ -142,7 +148,8 @@ class Dataset(object):
                     for song in validated:
                         song_file = os.path.join(root, artist, song)
                         if persist:
-                            self.metadata.write(self.valid_songs_file, '%s,%s\n' % (artist, song))
+                            line = '%s,%s\n' % (quote(artist), quote(song))
+                            self.metadata.write(self.valid_songs_file, line)
                         valid_songs[artist].add(song)
                 else:
                     valid_songs[artist] = set(songs)
