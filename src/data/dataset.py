@@ -23,7 +23,7 @@ class Metadata(object):
     the sampler.
     """
     def __init__(self, root, name):
-        self.dir = os.path.join(root, 'few_shot_metadata_%s' % name)
+        self.dir = os.path.join(root, name)
         self.open_files = {}
         if not os.path.exists(self.dir):
             os.makedirs(self.dir)
