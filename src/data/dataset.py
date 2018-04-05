@@ -32,7 +32,7 @@ class Metadata(object):
         return os.path.exists(os.path.join(self.dir, filename))
 
     def lines(self, filename):
-        if self.exists(filename):
+        if self.exists(os.path.join(self.dir, filename)):
             for line in open(os.path.join(self.dir, filename), 'r'):
                 yield line
         else:
