@@ -35,8 +35,6 @@ class Metadata(object):
         if self.exists(os.path.join(self.dir, filename)):
             for line in open(os.path.join(self.dir, filename), 'r'):
                 yield line
-        else:
-            return []
 
     def write(self, filename, line):
         if filename not in self.open_files:
