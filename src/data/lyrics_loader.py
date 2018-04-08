@@ -3,6 +3,7 @@
 """
 import logging
 import string
+import codecs
 
 import nltk
 import numpy as np
@@ -56,7 +57,7 @@ class LyricsLoader(Loader):
             filepath (str): path to the lyrics file. e.g.
                 "/home/user/lyrics_data/tool/lateralus.txt"
         """
-        return ''.join(open(filepath, 'r', errors='ignore').readlines())
+        return ''.join(codecs.open(filepath, 'r', errors='ignore').readlines())
 
     def tokenize(self, raw_lyrics):
         """Turns a string of lyrics data into a numpy array of int "word" IDs.

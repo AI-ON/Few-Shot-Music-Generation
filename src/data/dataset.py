@@ -23,7 +23,7 @@ class Metadata(object):
     the sampler.
     """
     def __init__(self, root, name):
-        self.dir = os.path.join(root, 'few_shot_metadata_%s' % name)
+        self.dir = os.path.join(root, name)
         self.open_files = {}
         if not os.path.exists(self.dir):
             os.makedirs(self.dir)
@@ -32,11 +32,9 @@ class Metadata(object):
         return os.path.exists(os.path.join(self.dir, filename))
 
     def lines(self, filename):
-        if self.exists(filename):
+        if self.exists(os.path.join(self.dir, filename)):
             for line in open(os.path.join(self.dir, filename), 'r'):
                 yield line
-        else:
-            return []
 
     def write(self, filename, line):
         if filename not in self.open_files:
