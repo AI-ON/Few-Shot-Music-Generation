@@ -1,0 +1,12 @@
+name: 'unigram_model'
+model_module_name: 'models.unigram_model'
+model_class_name: 'UnigramModel'
+
+n_train: !!int 60000
+print_every_n: !!int 1000
+val_every_n: !!float 5000
+n_val: !!int 600
+n_test: !!int 600
+n_samples: !!int 20
+
+batch_size: !!int 1

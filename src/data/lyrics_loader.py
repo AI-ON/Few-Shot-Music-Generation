@@ -8,7 +8,7 @@ import codecs
 import nltk
 import numpy as np
 
-from base_loader import Loader
+from data.base_loader import Loader
 
 
 log = logging.getLogger("few-shot")
@@ -58,6 +58,9 @@ class LyricsLoader(Loader):
                 "/home/user/lyrics_data/tool/lateralus.txt"
         """
         return ''.join(codecs.open(filepath, 'r', errors='ignore').readlines())
+
+    def get_num_tokens(self):
+        return self.highest_word_id + 1
 
     def tokenize(self, raw_lyrics):
         """Turns a string of lyrics data into a numpy array of int "word" IDs.

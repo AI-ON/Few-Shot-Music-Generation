@@ -1,0 +1,4 @@
+dataset: 'lyrics'
+dataset_path: '../raw-data/lyrics/lyrics_data/'
+splits: ['train', 'val', 'test']
+max_len: 50

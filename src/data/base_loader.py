@@ -29,6 +29,9 @@ class Loader(object):
     def detokenize(self, numpy_data):
         raise NotImplementedError
 
+    def get_num_tokens(self):
+        raise NotImplementedError
+
     def validate(self, filepath):
         try:
             self.load(filepath)
@@ -42,6 +45,8 @@ class Loader(object):
         except IndexError:
             return False
         except ValueError:
+            return False
+        except IOError:
             return False
 
     def load(self, filepath):
