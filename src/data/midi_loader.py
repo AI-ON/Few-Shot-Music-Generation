@@ -73,7 +73,8 @@ class MIDILoader(Loader):
             elif event_type == VELOCITY:
                 token = 16 * 128 * 2 + 32 * family + event_value
             elif event_type == TIME_SHIFT:
-                token = 16 * 128 * 2 + 32 * 16 + event_value
+                # subtract one, because TIME_SHIFT event values are 1-indexed
+                token = 16 * 128 * 2 + 32 * 16 + event_value - 1
             tokens.append(token)
         return tokens
 
@@ -98,7 +99,7 @@ class MIDILoader(Loader):
                 velocity = (token-16*128*2) % 32
                 current_velocity[instr_class] = velocity
             else:
-                current_time += (token-16*128*2-32*16)
+                current_time += (token-16*128*2-32*16+1)
 
         midi = pretty_midi.PrettyMIDI()
         for instr_class, instr_notes in enumerate(unsorted_notes):
