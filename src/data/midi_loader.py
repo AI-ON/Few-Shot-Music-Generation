@@ -80,7 +80,7 @@ class MIDILoader(Loader):
 
     def detokenize(self, numpy_data):
         current_time = 0
-        current_velocity = [64 for _ in range(16)]
+        current_velocity = [16 for _ in range(16)]
         unsorted_notes = [[] for _ in range(16)]
         active_notes = [[None for _ in range(128)] for _ in range(16)]
         for token in numpy_data:
@@ -91,9 +91,10 @@ class MIDILoader(Loader):
             elif token < 16 * 128 * 2:
                 instr_class = (token-16*128) // 128
                 pitch = (token-16*128) % 128
-                (velocity, start_time) = active_notes[instr_class][pitch]
-                unsorted_notes[instr_class].append((start_time, current_time, pitch, velocity))
-                active_notes[instr_class][pitch] = None
+                if active_notes[instr_class][pitch] is not None:
+                    (velocity, start_time) = active_notes[instr_class][pitch]
+                    unsorted_notes[instr_class].append((start_time, current_time, pitch, velocity))
+                    active_notes[instr_class][pitch] = None
             elif token < 16 * 128 * 2 + 32 * 16:
                 instr_class = (token-16*128*2) // 32
                 velocity = (token-16*128*2) % 32
