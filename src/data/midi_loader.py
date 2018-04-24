@@ -91,9 +91,10 @@ class MIDILoader(Loader):
             elif token < 16 * 128 * 2:
                 instr_class = (token-16*128) // 128
                 pitch = (token-16*128) % 128
-                (velocity, start_time) = active_notes[instr_class][pitch]
-                unsorted_notes[instr_class].append((start_time, current_time, pitch, velocity))
-                active_notes[instr_class][pitch] = None
+                if active_notes[instr_class][pitch] is not None:
+                    (velocity, start_time) = active_notes[instr_class][pitch]
+                    unsorted_notes[instr_class].append((start_time, current_time, pitch, velocity))
+                    active_notes[instr_class][pitch] = None
             elif token < 16 * 128 * 2 + 32 * 16:
                 instr_class = (token-16*128*2) // 32
                 velocity = (token-16*128*2) % 32
