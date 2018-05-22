@@ -1,0 +1,11 @@
+# Library dependencies for the python code.  You need to install these with
+# `pip install -r requirements.txt` before you can run this.
+
+# General
+yaml
+numpy
+
+# For data loading
+## Need to also run python -m nltk.downloader punkt
+nltk
+pretty_midi
