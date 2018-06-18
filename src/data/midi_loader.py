@@ -9,7 +9,7 @@ from operator import itemgetter
 
 import pretty_midi
 
-from base_loader import Loader
+from data.base_loader import Loader
 
 _SUSTAIN_ON = 0
 _SUSTAIN_OFF = 1
@@ -49,6 +49,15 @@ class MIDILoader(Loader):
 
     def is_song(self, filepath):
         return filepath.endswith('.mid')
+
+    def get_num_tokens(self):
+        """Get total number of possible MIDI tokens.
+
+        These are: 128 on/off notes for each of 16 instruments,
+        32 velocity buckets for each of 16 instruments,
+        and 100 for different time-shifts.
+        """
+        return 16 * 128 * 2 + 32 * 16 + 100
 
     def tokenize(self, midi):
         """Turns a MIDI file into a list of event IDs.

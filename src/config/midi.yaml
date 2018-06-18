@@ -1,0 +1,4 @@
+dataset: 'midi'
+dataset_path: '../raw-data/freemidi/freemidi_data/'
+splits: ['train', 'val', 'test']
+max_len: 50
