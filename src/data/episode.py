@@ -102,7 +102,8 @@ def load_sampler_from_config(config):
         'test_proportion',
         'persist',
         'cache',
-        'seed'
+        'seed',
+        'dataset_seed'
     ]
     for key in required_keys:
         if key not in config:
@@ -136,7 +137,8 @@ def load_sampler_from_config(config):
         persist=config.get('persist', True),
         validate=config.get('validate', True),
         min_songs=config['support_size']+config['query_size'],
-        parallel=parallel
+        parallel=parallel,
+        seed=config.get('dataset_seed', 0)
     )
     return EpisodeSampler(
         dataset,
