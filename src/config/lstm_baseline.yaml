@@ -1,6 +1,7 @@
 name: 'lstm_baseline'
 model_module_name: 'models.lstm_baseline'
 model_class_name: 'LSTMBaseline'
+base_dir: '/tmp/fewshot/lstm_baseline'
 
 n_train: !!int 60000
 n_decay: !!int 10000
