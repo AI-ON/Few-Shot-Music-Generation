@@ -82,9 +82,9 @@ class TFModel(BaseModel):
 
         super(TFModel, self).__init__(config)
         if config['base_dir']:
-          self._summary_writer = tf.summary.FileWriter(config['base_dir'])
-          self._train_calls = 0
-          self._eval_calls = 0
+            self._summary_writer = tf.summary.FileWriter(config['base_dir'])
+            self._train_calls = 0
+            self._eval_calls = 0
         self._sess = start_session()
 
         with tf.variable_scope(self.name):
