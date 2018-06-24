@@ -79,10 +79,12 @@ class Dataset(object):
             the dataset.
         valid_songs_file (str): the name file which contains persists a list
             of valid songs.
+        seed (int or None): the random seed which is used for shuffling the
+            artists.
     """
     def __init__(self, root, split, loader, metadata, split_proportions=(8,1,1),
             persist=True, cache=True, validate=True, min_songs=0, parallel=False,
-            valid_songs_file='valid_songs.csv'):
+            valid_songs_file='valid_songs.csv', seed=None):
         self.root = root
         self.cache = cache
         self.cache_data = {}
@@ -163,7 +165,9 @@ class Dataset(object):
                     skipped_count, min_songs, len(all_artists)))
             train_count = int(float(split_proportions[0]) / sum(split_proportions) * len(all_artists))
             val_count = int(float(split_proportions[1]) / sum(split_proportions) * len(all_artists))
-            np.random.shuffle(all_artists)
+            # Use RandomState(seed) so that shuffles with the same set of
+            # artists will result in the same shuffle on different computers.
+            np.random.RandomState(seed).shuffle(all_artists)
             if persist:
                 self.metadata.write('train.csv', '\n'.join(all_artists[:train_count]))
                 self.metadata.write('val.csv', '\n'.join(all_artists[train_count:train_count+val_count]))
