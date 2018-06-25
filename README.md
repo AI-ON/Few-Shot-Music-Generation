@@ -67,3 +67,7 @@ To view the tensorboard (only works for `lstm_baseline.yaml` model):
 $ tensorboard --logdir=/tmp/fewshot
 
 If you have any trouble running the code, please create an issue describing your problem.
+
+
+### Logging results
+Please log all your results in [this spreadsheet](https://docs.google.com/spreadsheets/d/18Wb2ct78WnHX2Z9TUgd1mHaJ1zDXznapU5MO8f-9ou0/edit#gid=0).
