@@ -65,6 +65,7 @@ python -um train.train --data=config/${CONFIG} --model=config/${MODEL} --task=co
 To view the tensorboard (only works for `lstm_baseline.yaml` model):
 ```
 $ tensorboard --logdir=/tmp/fewshot
+```
 
 If you have any trouble running the code, please create an issue describing your problem.
 
