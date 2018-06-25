@@ -54,10 +54,16 @@ ls Few-Shot-Music-Generation/raw-data/lyrics/
 ```
 
 ### Training Models
-The training script can be run with the following command:
+Sample run (check the different yaml files for different ways to run):
+```
+$ CONFIG=lyrics.yaml
+$ MODEL=lstm_baseline.yaml
+$ TASK=5shot.yaml
+python -um train.train --data=config/${CONFIG} --model=config/${MODEL} --task=config/${TASK} --checkpt_dir=/tmp/fewshot/lstm_baseline
+```
 
+To view the tensorboard (only works for `lstm_baseline.yaml` model):
 ```
-python -um train.train --model=config/[model yaml file] --data=config/[data yaml file] --task=config/[task yaml file] --checkpt_dir=[snapshot directory for model]
-```
+$ tensorboard --logdir=/tmp/fewshot
 
 If you have any trouble running the code, please create an issue describing your problem.
