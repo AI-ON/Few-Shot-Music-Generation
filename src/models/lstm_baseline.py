@@ -103,6 +103,13 @@ class LSTMBaseline(TFModel):
 
         _, loss = self._sess.run([self._train_op, self._avg_neg_log],
                                  feed_dict=feed_dict)
+        if self._summary_writer:
+            summary = tf.Summary(value=[
+                tf.Summary.Value(tag='Train/loss',
+                                 simple_value=loss)])
+            self._summary_writer.add_summary(summary, self._train_calls)
+            self._train_calls += 1
+
         return loss
 
     def eval(self, episode):
@@ -116,6 +123,12 @@ class LSTMBaseline(TFModel):
         feed_dict[self._batch_size] = np.shape(X)[0]
         feed_dict[self._seq_length] = [np.shape(X)[1]] * np.shape(X)[0]
         avg_neg_log = self._sess.run(self._avg_neg_log, feed_dict=feed_dict)
+        if self._summary_writer:
+            summary = tf.Summary(value=[
+                tf.Summary.Value(tag='Eval/Avg_NLL',
+                                 simple_value=avg_neg_log)])
+            self._summary_writer.add_summary(summary, self._eval_calls)
+            self._eval_calls += 1
 
         return avg_neg_log
 

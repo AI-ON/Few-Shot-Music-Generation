@@ -81,6 +81,10 @@ class TFModel(BaseModel):
         tf.set_random_seed(config['seed'])
 
         super(TFModel, self).__init__(config)
+        if config['checkpt_dir']:
+            self._summary_writer = tf.summary.FileWriter(config['checkpt_dir'])
+            self._train_calls = 0
+            self._eval_calls = 0
         self._sess = start_session()
 
         with tf.variable_scope(self.name):

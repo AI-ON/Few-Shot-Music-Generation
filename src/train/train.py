@@ -47,6 +47,7 @@ config = yaml.load(open(args.data, 'r'))
 config.update(yaml.load(open(args.task, 'r')))
 config.update(yaml.load(open(args.model, 'r')))
 config['dataset_path'] = os.path.abspath(config['dataset_path'])
+config['checkpt_dir'] = args.checkpt_dir
 print('Config:')
 print(PP.pformat(config))
 
