@@ -12,7 +12,8 @@
 * ~~Brainstorming for datasets phase: Currently collecting ideas for dataset collection for lyrics and MIDI data. See the Issues page for details.~~
 * ~~Collecting actual data for lyrics and MIDI.~~
 * ~~Decide and implement pre-processing scheme for data (specifically for MIDI).~~
-* Release training script and model API code.
+* ~~Release training script and model API code.~~
+* Experiment with new models on both datasets.
 
 ## Community Links
 
