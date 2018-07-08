@@ -4,7 +4,7 @@ import argparse
 import yaml
 
 from data.episode import load_sampler_from_config
-from .train import load_model_from_config
+from train import load_model_from_config
 
 PP = pprint.PrettyPrinter(depth=6)
 
