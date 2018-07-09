@@ -123,7 +123,7 @@ class LSTMBaseline(TFModel):
         feed_dict[self._batch_size] = np.shape(X)[0]
         feed_dict[self._seq_length] = [np.shape(X)[1]] * np.shape(X)[0]
         avg_neg_log = self._sess.run(self._avg_neg_log, feed_dict=feed_dict)
-        if self._summary_writer:
+        if self._summary_writer is not None:
             summary = tf.Summary(value=[
                 tf.Summary.Value(tag='Eval/Avg_NLL',
                                  simple_value=avg_neg_log)])
