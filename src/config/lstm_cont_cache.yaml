@@ -1,0 +1,23 @@
+name: 'lstm_baseline'
+model_module_name: 'models.lstm_cont_cache'
+model_class_name: 'LSTMContCache'
+
+n_train: !!int 60000
+n_decay: !!int 10000
+print_every_n: !!int 1000
+val_every_n: !!float 1000
+n_val: !!int 600
+n_test: !!int 600
+n_samples: !!int 20
+
+lr: !!float 1e-3
+patience_iters: !!int 5
+max_grad_norm: !!int 5
+batch_size: !!int 5
+embedding_size: !!int 250
+n_layers: !!int 1
+hidden_size: !!int 200
+subseq_len: !!int 10
+
+theta: !!float 0.2
+lambda: !!float 0.05
