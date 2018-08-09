@@ -10,8 +10,7 @@ n_val: !!int 600
 n_test: !!int 600
 n_samples: !!int 20
 
-lr: !!float 1e-2
-#lr: !!float 1e-1
+lr: !!float 1e-1
 meta_lr: !!float 1e-3
 patience_iters: !!int 5
 n_update: !!int 3
