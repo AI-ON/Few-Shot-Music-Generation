@@ -60,7 +60,8 @@ def flatten_first_two_dims(token_array):
     return np.reshape(token_array, (shape[0] * shape[1], shape[2]))
 
 
-def convert_tokens_to_input_and_target(token_array, start_word=None):
+def convert_tokens_to_input_and_target(token_array, start_word=None,
+                                       flatten_batch=True):
     """Convert token_array to input and target to use for model for
     sequence generation.
 
@@ -68,19 +69,39 @@ def convert_tokens_to_input_and_target(token_array, start_word=None):
     Input is token_array without last item; Target is token_array without first item.
 
     Arguments:
-        token_array (numpy int array): tokens array of size [B,S,N] where
-            B is batch_size, S is number of songs, N is size of the song
+        token_array (numpy int array): tokens array of size [B,S,N] or [S, N]
+            where B is batch_size, S is number of songs, N is size of the song
         start_word (int): token to use for start word
+        flatten_batch (boolean): whether to flatten along the batch dimension
+    Returns:
+        X_new (numpy int array): input tokens of size either
+            a. [B*S,N] if token_array is [B,S,N] and flatten_batch=True
+            b. [B,S,N] if token_array is [B,S,N] and flatten_batch=False
+            c. [S,N] if token_array is [S,N]
+        Y (numpy int array): output tokens of same size as X_new
     """
-    X = flatten_first_two_dims(token_array)
-
-    if start_word is None:
-        Y = np.copy(X[:, 1:])
-        X_new = X[:, :-1]
+    if token_array.ndim == 3 and flatten_batch:
+        X = flatten_first_two_dims(token_array)
     else:
-        Y = np.copy(X)
-        start_word_column = np.full(
-            shape=[np.shape(X)[0], 1], fill_value=start_word)
-        X_new = np.concatenate([start_word_column, X[:, :-1]], axis=1)
+        X = token_array
+
+    if X.ndim == 2:
+        if start_word is None:
+            Y = np.copy(X[:, 1:])
+            X_new = X[:, :-1]
+        else:
+            Y = np.copy(X)
+            start_word_column = np.full(
+                shape=[np.shape(X)[0], 1], fill_value=start_word)
+            X_new = np.concatenate([start_word_column, X[:, :-1]], axis=1)
+    elif X.ndim == 3:
+        if start_word is None:
+            Y = np.copy(X[:, :, 1:])
+            X_new = X[:, :, :-1]
+        else:
+            Y = np.copy(X)
+            start_word_column = np.full(
+                shape=[np.shape(X)[0], np.shape(X)[1], 1], fill_value=start_word)
+            X_new = np.concatenate([start_word_column, X[:, :, :-1]], axis=2)
 
     return X_new, Y

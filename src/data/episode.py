@@ -108,6 +108,11 @@ def load_sampler_from_config(config):
     for key in required_keys:
         if key not in config:
             raise RuntimeError('required config key "%s" not found' % key)
+
+    # Force batch_size of 1 for evaluation
+    if config['split'] in ['val', 'test']:
+        config['batch_size'] = 1
+
     props = (
         config.get('train_proportion', 8),
         config.get('val_proportion', 1),

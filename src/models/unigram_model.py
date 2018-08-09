@@ -15,7 +15,7 @@ class UnigramModel(TFModel):
     def __init__(self, config):
         super(UnigramModel, self).__init__(config)
 
-    def _define_placedholders(self):
+    def _define_placeholders(self):
         self._input_size = self._config['input_size']
         self._time_steps = self._config['max_len']
 
@@ -71,8 +71,8 @@ class UnigramModel(TFModel):
         pred_words = []
 
         for i in range(num):
-            prob = self._sess.run(self._prob_all)
-            word = np.argmax(prob)
+            p = self._sess.run(self._prob_all)
+            word = self._sampler.sample(p)
             pred_words.append(word)
 
         return pred_words

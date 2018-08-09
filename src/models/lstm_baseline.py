@@ -3,6 +3,7 @@ import tensorflow as tf
 
 from models.tf_model import TFModel
 from models.base_model import convert_tokens_to_input_and_target
+from models.lstm_cell import LSTMCell
 
 
 class LSTMBaseline(TFModel):
@@ -15,18 +16,13 @@ class LSTMBaseline(TFModel):
     def __init__(self, config):
         super(LSTMBaseline, self).__init__(config)
 
-    def _define_placedholders(self):
-        # Add start word that starts every song
-        # Adding start word increases the size of vocabulary by 1
-        self._start_word = self._config['input_size']
-        self._input_size = self._config['input_size'] + 1
-
-        self._time_steps = self._config['max_len']
+    def _define_placeholders(self):
         self._embd_size = self._config['embedding_size']
         self._hidden_size = self._config['hidden_size']
         self._n_layers = self._config['n_layers']
         self._lr = self._config['lr']
         self._max_grad_norm = self._config['max_grad_norm']
+        self._embedding_var_name = 'embedding'
 
         self._batch_size = tf.placeholder(tf.int32, shape=())
         self._seq_length = tf.placeholder(tf.int32, [None])
@@ -35,33 +31,44 @@ class LSTMBaseline(TFModel):
         self._target = tf.placeholder(
             tf.int32, [None, self._time_steps])
 
-    def _build_graph(self):
-        embedding = tf.get_variable(
-            'embedding', [self._input_size, self._embd_size])
-        inputs = tf.nn.embedding_lookup(embedding, self._words)
-        inputs = tf.unstack(inputs, axis=1)
-
-        def make_cell():
+    def _build_lstm(self):
+        def make_cell(n):
+            """
+            # Use Tensorflow Cell
             return tf.contrib.rnn.BasicLSTMCell(
                 self._hidden_size, forget_bias=1., state_is_tuple=True)
+            """
+            return LSTMCell(n, self._embd_size, self._hidden_size)
+
+        embedding = tf.get_variable(
+            self._embedding_var_name, [self._input_size, self._embd_size])
+        # [batch_size, time_step, embd_size]
+        inputs = tf.nn.embedding_lookup(embedding, self._words)
 
         self._cell = tf.contrib.rnn.MultiRNNCell(
-            [make_cell() for _ in range(self._n_layers)])
+            [make_cell(i) for i in range(self._n_layers)])
         self._initial_state = self._cell.zero_state(
             self._batch_size, dtype=tf.float32)
-        outputs, state = tf.nn.static_rnn(
-            self._cell, inputs, initial_state=self._initial_state,
-            sequence_length=self._seq_length)
-        self._state = state
 
-        output = tf.concat(outputs, 1)
-        self._output = tf.reshape(output, [-1, self._hidden_size])
+        # outputs: [batch_size, time_step, hidden_size]
+        # state: [batch_size, hidden_size]
+        outputs, state = tf.nn.dynamic_rnn(
+            self._cell, inputs, initial_state=self._initial_state,
+            sequence_length=self._seq_length
+        )
+        self._outputs = outputs
+        self._final_state = state
+
+        # [batch_size * time_step, hidden_size]
+        self._output = tf.reshape(self._outputs, [-1, self._hidden_size])
 
         softmax_w = tf.get_variable(
             'softmax_w', [self._hidden_size, self._input_size])
         softmax_b = tf.get_variable('softmax_b', [self._input_size])
-        # Reshape logits to be a 3-D tensor for sequence loss
+
+        # [batch_size * time_step, input_size]
         logits = tf.nn.xw_plus_b(self._output, softmax_w, softmax_b)
+        # [batch_size, time_step, input_size]
         logits = tf.reshape(
             logits, [self._batch_size, self._time_steps, self._input_size])
         self._logits = logits
@@ -73,6 +80,9 @@ class LSTMBaseline(TFModel):
             tf.ones([self._batch_size, self._time_steps], dtype=tf.float32),
             average_across_timesteps=True,
             average_across_batch=True)
+
+    def _build_graph(self):
+        self._build_lstm()
 
         lr = tf.train.exponential_decay(
             self._lr,
@@ -103,7 +113,7 @@ class LSTMBaseline(TFModel):
 
         _, loss = self._sess.run([self._train_op, self._avg_neg_log],
                                  feed_dict=feed_dict)
-        if self._summary_writer:
+        if self._summary_writer is not None:
             summary = tf.Summary(value=[
                 tf.Summary.Value(tag='Train/loss',
                                  simple_value=loss)])
@@ -147,10 +157,10 @@ class LSTMBaseline(TFModel):
             feed_dict[self._seq_length] = [1]
             feed_dict[self._initial_state] = state
 
-            probs, state = self._sess.run([self._prob, self._state],
+            probs, state = self._sess.run([self._prob, self._final_state],
                                           feed_dict=feed_dict)
             p = probs[0][0]
-            word = np.argmax(p)
+            word = self._sampler.sample(p)
             pred_words.append(word)
 
         return pred_words

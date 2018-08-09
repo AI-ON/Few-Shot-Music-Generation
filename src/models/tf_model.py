@@ -3,6 +3,7 @@ import tensorflow as tf
 import pprint
 
 from models.base_model import BaseModel
+from evaluation.sampler import Sampler
 
 PP = pprint.PrettyPrinter(depth=6)
 
@@ -81,20 +82,33 @@ class TFModel(BaseModel):
         tf.set_random_seed(config['seed'])
 
         super(TFModel, self).__init__(config)
+        # Set up checkpoint directory
         self._summary_writer = None
         if 'checkpt_dir' in config:
             self._summary_writer = tf.summary.FileWriter(config['checkpt_dir'])
             self._train_calls = 0
             self._eval_calls = 0
-        self._sess = start_session()
 
+        # Set up which sampler to use
+        if 'sampler_type' in config:
+            self._sampler = Sampler(config['sampler_type'])
+        else:
+            self._sampler = Sampler()
+
+        # Add start word that starts every song
+        # Adding start word increases the size of vocabulary by 1
+        self._start_word = self._config['input_size']
+        self._input_size = self._config['input_size'] + 1
+        self._time_steps = self._config['max_len']
+
+        self._sess = start_session()
         with tf.variable_scope(self.name):
             self._global_step = tf.Variable(0, trainable=False)
-            self._define_placedholders()
+            self._define_placeholders()
             self._build_graph()
 
         self._saver = tf.train.Saver(self.get_vars(only_trainable=False),
-                                     max_to_keep=10)
+                                     max_to_keep=5)
 
     def get_vars(self, name=None, only_trainable=True):
         name = name or self.name
