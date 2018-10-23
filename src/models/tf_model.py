@@ -79,7 +79,8 @@ def optimistic_restore(session, save_file, only_load_trainable_vars=False,
 class TFModel(BaseModel):
 
     def __init__(self, config):
-        tf.set_random_seed(config['seed'])
+        if 'seed' in config:
+            tf.set_random_seed(config['seed'])
 
         super(TFModel, self).__init__(config)
         # Set up checkpoint directory
@@ -95,11 +96,14 @@ class TFModel(BaseModel):
         else:
             self._sampler = Sampler()
 
-        # Add start word that starts every song
-        # Adding start word increases the size of vocabulary by 1
-        self._start_word = self._config['input_size']
-        self._input_size = self._config['input_size'] + 1
-        self._time_steps = self._config['max_len']
+        # Have start word that starts every song
+        # Have end word that ends every song
+        self._start_word = self._config['start_token']
+        self._end_word = self._config['stop_token']
+        self._input_size = self._config['input_size']
+
+        # Adding end word increase sequence size by +1
+        self._time_steps = self._config['max_len'] + 1
 
         self._sess = start_session()
         with tf.variable_scope(self.name):

@@ -7,21 +7,20 @@ import time
 import multiprocessing
 import itertools
 try:
-    from urllib import quote, unquote # python 2
+    from urllib import quote, unquote  # python 2
 except ImportError:
-    from urllib.parse import quote, unquote # python 3
-
+    from urllib.parse import quote, unquote  # python 3
 import numpy as np
 
+from data.lib import get_random
 
 log = logging.getLogger('few-shot')
 logging.basicConfig(level=logging.INFO)
 
 
 class Metadata(object):
-    """An object for tracking the metadata associated with a configuration of
-    the sampler.
-    """
+    """Track the metadata associated with a configuration of the sampler."""
+
     def __init__(self, root, name):
         self.dir = os.path.join(root, name)
         self.open_files = {}
@@ -38,7 +37,8 @@ class Metadata(object):
 
     def write(self, filename, line):
         if filename not in self.open_files:
-            self.open_files[filename] = open(os.path.join(self.dir, filename), 'a')
+            self.open_files[filename] = open(
+                os.path.join(self.dir, filename), 'a')
         self.open_files[filename].write(line)
 
     def close(self):
@@ -82,25 +82,28 @@ class Dataset(object):
         seed (int or None): the random seed which is used for shuffling the
             artists.
     """
-    def __init__(self, root, split, loader, metadata, split_proportions=(8,1,1),
-            persist=True, cache=True, validate=True, min_songs=0, parallel=False,
-            valid_songs_file='valid_songs.csv', seed=None):
+
+    def __init__(self, root, loader, metadata, artists_in_split, seed=None,
+                 persist=True, cache=True, validate=True, min_songs=0,
+                 artists_file='artists.csv',
+                 valid_songs_file='valid_songs.csv'):
         self.root = root
         self.cache = cache
         self.cache_data = {}
         self.loader = loader
         self.metadata = metadata
+        self.random = get_random(seed)
         self.artists = []
         self.valid_songs_file = valid_songs_file
         valid_songs = {}
-        artist_in_split = []
+        valid_artists_in_split = []
 
         # If we're both validating and using persistence, load any validation
         # data from disk. The format of the validation file is just a CSV
         # with two entries: artist and song. The artist is the name of the
         # artist (i.e. the directory (e.g. 'K_s Choice')) and the song is
         # the song file name (e.g. 'ironflowers.mid').
-        if validate and persist:
+        if validate and persist and self.metadata.exists(valid_songs_file):
             for line in self.metadata.lines(valid_songs_file):
                 artist, song = line.rstrip('\n').split(',', 1)
                 artist = unquote(artist)
@@ -109,20 +112,15 @@ class Dataset(object):
                     valid_songs[artist] = set()
                 valid_songs[artist].add(song)
 
-        if persist and self.metadata.exists('%s.csv' % split):
-            artists_in_split = []
-            for line in self.metadata.lines('%s.csv' % split):
-                artists_in_split.append(line.rstrip('\n'))
+            valid_artists_in_split = artists_in_split
         else:
             dirs = []
-            all_artists = []
             skipped_count = 0
-            pool = multiprocessing.Pool(multiprocessing.cpu_count())
 
-            for artist in os.listdir(root):
+            for artist in artists_in_split:
                 if os.path.isdir(os.path.join(root, artist)):
                     songs = os.listdir(os.path.join(root, artist))
-                    songs = [song for song in songs if loader.is_song(song)]
+                    songs = [s for s in songs if loader.is_song(s)]
                     if len(songs) > 0:
                         dirs.append(artist)
 
@@ -130,58 +128,45 @@ class Dataset(object):
             progress_logger = ProgressLogger(num_dirs)
 
             for artist_index, artist in enumerate(dirs):
+                # log.info("Processing artist %s" % artist)
                 songs = os.listdir(os.path.join(root, artist))
                 # We only want .txt and .mid files. Filter all others.
-                songs = [song for song in songs if loader.is_song(song)]
+                songs = [s for s in songs if loader.is_song(s)]
                 # populate `valid_songs[artist]`
                 if validate:
                     progress_logger.maybe_log(artist_index)
                     if artist not in valid_songs:
                         valid_songs[artist] = set()
-                    songs_to_validate = [song for song in songs if song not in valid_songs[artist]]
-                    song_files = [os.path.join(root, artist, song) for song in songs_to_validate]
-                    if parallel:
-                        mapped = pool.map(loader.validate, song_files)
-                    else:
-                        mapped = map(loader.validate, song_files)
+                    songs_to_validate = [s for s in songs if s not in valid_songs[artist]]
+                    song_files = [os.path.join(root, artist, s) for s in songs_to_validate]
+                    mapped = map(loader.validate, song_files)
                     validated = itertools.compress(songs_to_validate, mapped)
                     for song in validated:
-                        song_file = os.path.join(root, artist, song)
+                        # song_file = os.path.join(root, artist, song)
                         if persist:
                             line = '%s,%s\n' % (quote(artist), quote(song))
                             self.metadata.write(self.valid_songs_file, line)
+                        # log.info("Validated song %s" % song)
                         valid_songs[artist].add(song)
                 else:
                     valid_songs[artist] = set(songs)
 
                 if len(valid_songs[artist]) >= min_songs:
-                    all_artists.append(artist)
+                    valid_artists_in_split.append(artist)
                 else:
                     skipped_count += 1
-            pool.close()
-            pool.join()
+
             if skipped_count > 0:
                 log.info("%s artists don't have K+K'=%s songs. Using %s artists" % (
-                    skipped_count, min_songs, len(all_artists)))
-            train_count = int(float(split_proportions[0]) / sum(split_proportions) * len(all_artists))
-            val_count = int(float(split_proportions[1]) / sum(split_proportions) * len(all_artists))
-            # Use RandomState(seed) so that shuffles with the same set of
-            # artists will result in the same shuffle on different computers.
-            np.random.RandomState(seed).shuffle(all_artists)
+                    skipped_count, min_songs, len(valid_artists_in_split)))
+
             if persist:
-                self.metadata.write('train.csv', '\n'.join(all_artists[:train_count]))
-                self.metadata.write('val.csv', '\n'.join(all_artists[train_count:train_count+val_count]))
-                self.metadata.write('test.csv', '\n'.join(all_artists[train_count+val_count:]))
-            if split == 'train':
-                artists_in_split = all_artists[:train_count]
-            elif split == 'val':
-                artists_in_split = all_artists[train_count:train_count+val_count]
-            else:
-                artists_in_split = all_artists[train_count+val_count:]
+                metadata.write(
+                    artists_file, '\n'.join(valid_artists_in_split))
 
         self.metadata.close()
 
-        for artist in artists_in_split:
+        for artist in valid_artists_in_split:
             self.artists.append(ArtistDataset(artist, list(valid_songs[artist])))
 
     def load(self, artist, song):
@@ -192,11 +177,21 @@ class Dataset(object):
             artist (str): the name of the artist directory. e.g. `"tool"`
         """
         if self.cache and (artist, song) in self.cache_data:
-            return self.cache_data[(artist, song)]
+            tokens, seq_lens = self.cache_data[(artist, song)]
         else:
-            data = self.loader.load(os.path.join(self.root, artist, song))
-            self.cache_data[(artist, song)] = data
-            return data
+            tokens, seq_lens = self.loader.load(
+                os.path.join(self.root, artist, song))
+            self.cache_data[(artist, song)] = (tokens, seq_lens)
+
+        if tokens.ndim == 1:
+            data = (tokens, seq_lens)
+        elif tokens.ndim == 2:
+            idx = self.random.choice(range(np.shape(tokens)[0]), size=1)[0]
+            data = (tokens[idx], seq_lens[idx])
+        else:
+            raise RuntimeError(
+                "Token matrix has dimension > 2: %d", tokens.ndim)
+        return data
 
     def __len__(self):
         return len(self.artists)

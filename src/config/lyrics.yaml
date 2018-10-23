@@ -1,4 +1,7 @@
 dataset: 'lyrics'
 dataset_path: '../raw-data/lyrics/lyrics_data/'
 splits: ['train', 'val', 'test']
+word_min_times: 5
+max_unk_percent: 5
+min_len: 5
 max_len: 50

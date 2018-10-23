@@ -1,21 +1,24 @@
 #!/usr/bin/python3
 import os
-import time
 import logging
 import yaml
-
 import numpy as np
-from numpy.random import RandomState
 
 from data.midi_loader import MIDILoader
 from data.lyrics_loader import LyricsLoader
 from data.dataset import Dataset, Metadata
+from data.lib import get_random
+
+log = logging.getLogger('few-shot')
+logging.basicConfig(level=logging.INFO)
 
 
 class Episode(object):
-    def __init__(self, support, query):
+    def __init__(self, support, support_seq_len, query, query_seq_len):
         self.support = support
+        self.support_seq_len = support_seq_len
         self.query = query
+        self.query_seq_len = query_seq_len
 
 
 class SQSampler(object):
@@ -60,27 +63,87 @@ class EpisodeSampler(object):
         return 'EpisodeSampler("%s", "%s")' % (self.root, self.split)
 
     def get_episode(self):
-        support = np.zeros((self.batch_size, self.support_size, self.max_len), dtype=self.dtype)
-        query = np.zeros((self.batch_size, self.query_size, self.max_len), dtype=self.dtype)
-        artists = self.random.choice(self.dataset, size=self.batch_size, replace=False)
+        support = np.zeros(
+            (self.batch_size, self.support_size, self.max_len), dtype=self.dtype)
+        support_seq_len = np.zeros(
+            (self.batch_size, self.support_size), dtype=self.dtype)
+        query = np.zeros(
+            (self.batch_size, self.query_size, self.max_len), dtype=self.dtype)
+        query_seq_len = np.zeros(
+            (self.batch_size, self.query_size), dtype=self.dtype)
+        artists = self.random.choice(
+            self.dataset, size=self.batch_size, replace=False)
         for batch_index, artist in enumerate(artists):
             query_songs, support_songs = self.sq_sampler.sample(artist)
             for support_index, song in enumerate(support_songs):
-                parsed_song = self.dataset.load(artist.name, song)
-                support[batch_index,support_index,:] = parsed_song
+                parsed_song, parsed_len = self.dataset.load(artist.name, song)
+                support[batch_index, support_index, :] = parsed_song
+                support_seq_len[batch_index, support_index] = parsed_len
             for query_index, song in enumerate(query_songs):
-                parsed_song = self.dataset.load(artist.name, song)
-                query[batch_index,query_index,:] = parsed_song
-        return Episode(support, query)
+                parsed_song, parsed_len = self.dataset.load(artist.name, song)
+                query[batch_index, query_index, :] = parsed_song
+                query_seq_len[batch_index, query_index] = parsed_len
+        return Episode(support, support_seq_len, query, query_seq_len)
 
     def get_num_unique_words(self):
         return self.dataset.loader.get_num_tokens()
 
+    def get_unk_token(self):
+        return self.dataset.loader.get_unk_token()
+
+    def get_start_token(self):
+        return self.dataset.loader.get_start_token()
+
+    def get_stop_token(self):
+        return self.dataset.loader.get_stop_token()
+
     def detokenize(self, numpy_data):
         return self.dataset.loader.detokenize(numpy_data)
 
-def load_sampler_from_config(config):
-    """Create an EpisodeSampler from a yaml config."""
+
+def create_split(root, loader, metadata, seed,
+                 split_proportions=(8, 1, 1), persist=True):
+    train_exists = metadata.exists('train.csv')
+    val_exists = metadata.exists('test.csv')
+    test_exists = metadata.exists('val.csv')
+
+    if train_exists and val_exists and test_exists:
+        artist_splits = {}
+        for split in ['train', 'test', 'val']:
+            artist_splits[split] = []
+            for line in metadata.lines('%s.csv' % split):
+                artist_splits[split].append(line.rstrip('\n'))
+
+        return artist_splits
+
+    all_artists = []
+    for artist in os.listdir(root):
+        if os.path.isdir(os.path.join(root, artist)):
+            songs = os.listdir(os.path.join(root, artist))
+            songs = [s for s in songs if loader.is_song(s)]
+            if len(songs) > 0:
+                all_artists.append(artist)
+
+    train_count = int(float(split_proportions[0]) /
+                      sum(split_proportions) * len(all_artists))
+    val_count = int(float(split_proportions[1]) /
+                    sum(split_proportions) * len(all_artists))
+
+    # Use RandomState(seed) so that shuffles with the same set of
+    # artists will result in the same shuffle on different computers.
+    np.random.RandomState(seed).shuffle(all_artists)
+    split_train = all_artists[:train_count]
+    split_val = all_artists[train_count:train_count + val_count]
+    split_test = all_artists[train_count + val_count:]
+
+    return {
+        'train': split_train,
+        'val': split_val,
+        'test': split_test
+    }
+
+
+def load_all_samplers_from_config(config):
     if isinstance(config, str):
         config = yaml.load(open(config, 'r'))
     elif isinstance(config, dict):
@@ -92,58 +155,87 @@ def load_sampler_from_config(config):
         'query_size',
         'support_size',
         'batch_size',
+        'min_len',
         'max_len',
         'dataset',
-        'split'
-    ]
-    optional_keys = [
-        'train_proportion',
-        'val_proportion',
-        'test_proportion',
-        'persist',
-        'cache',
-        'seed',
-        'dataset_seed'
     ]
     for key in required_keys:
         if key not in config:
             raise RuntimeError('required config key "%s" not found' % key)
 
-    # Force batch_size of 1 for evaluation
-    if config['split'] in ['val', 'test']:
-        config['batch_size'] = 1
-
-    props = (
-        config.get('train_proportion', 8),
-        config.get('val_proportion', 1),
-        config.get('test_proportion', 1)
-    )
     root = config['dataset_path']
     if not os.path.isdir(root):
         raise RuntimeError('required data directory %s does not exist' % root)
 
-    metadata_dir = 'few_shot_metadata_%s_%s' % (config['dataset'], config['max_len'])
+    metadata_dir = 'few_shot_metadata_%s_%s' % (config['dataset'],
+                                                config['max_len'])
     metadata = Metadata(root, metadata_dir)
+
     if config['dataset'] == 'lyrics':
-        loader = LyricsLoader(config['max_len'], metadata=metadata)
-        parallel = False
+        loader = LyricsLoader(
+            config['min_len'], config['max_len'], config['max_unk_percent'],
+            metadata=metadata, persist=False)
     elif config['dataset'] == 'midi':
         loader = MIDILoader(config['max_len'])
-        parallel = False
     else:
         raise RuntimeError('unknown dataset "%s"' % config['dataset'])
+    artist_splits = create_split(
+        root, loader, metadata, seed=config.get('dataset_seed', 0))
+
+    if not loader.read_vocab():
+        log.info("Building vocabulary using train")
+        config['split'] = 'train'
+        config['validate'] = True
+        config['persist'] = False
+        config['cache'] = False
+        load_sampler_from_config(config, metadata, artist_splits, loader)
+        loader.prune(config['word_min_times'])
+        log.info("Vocabulary pruned!")
+
+    loader.persist = True
+    episode_sampler = {}
+    for split in config['splits']:
+        log.info("Encoding %s split using pruned vocabulary" % split)
+        config['split'] = split
+        config['validate'] = True
+        config['persist'] = True
+        config['cache'] = True
+        episode_sampler[split] = load_sampler_from_config(
+            config, metadata, artist_splits, loader)
+
+    return episode_sampler
+
+
+def load_sampler_from_config(config, metadata, artist_splits, loader=None):
+    """Create an EpisodeSampler from a yaml config."""
+    # Force batch_size of 1 for evaluation
+    if config['split'] in ['val', 'test']:
+        config['batch_size'] = 1
+
+    root = config['dataset_path']
+    if not os.path.isdir(root):
+        raise RuntimeError('required data directory %s does not exist' % root)
+
+    if loader is None:
+        if config['dataset'] == 'lyrics':
+            loader = LyricsLoader(config['max_len'], metadata=metadata)
+        elif config['dataset'] == 'midi':
+            loader = MIDILoader(config['max_len'])
+        else:
+            raise RuntimeError('unknown dataset "%s"' % config['dataset'])
+
     dataset = Dataset(
         root,
-        config['split'],
         loader,
         metadata,
-        split_proportions=props,
+        artist_splits[config['split']],
+        seed=config.get('seed', None),
         cache=config.get('cache', True),
         persist=config.get('persist', True),
         validate=config.get('validate', True),
-        min_songs=config['support_size']+config['query_size'],
-        parallel=parallel,
-        seed=config.get('dataset_seed', 0)
+        min_songs=config['support_size'] + config['query_size'],
+        artists_file='%s.csv' % config['split'],
+        valid_songs_file='valid_songs_%s.csv' % config['split']
     )
     return EpisodeSampler(
         dataset,
@@ -152,10 +244,3 @@ def load_sampler_from_config(config):
         config['query_size'],
         config['max_len'],
         seed=config.get('seed', None))
-
-
-def get_random(seed):
-    if seed is not None:
-        return RandomState(seed)
-    else:
-        return np.random
