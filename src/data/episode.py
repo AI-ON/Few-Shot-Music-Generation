@@ -14,11 +14,14 @@ logging.basicConfig(level=logging.INFO)
 
 
 class Episode(object):
-    def __init__(self, support, support_seq_len, query, query_seq_len):
+    def __init__(self, support, support_seq_len, query, query_seq_len,
+                 metadata_support=None, metdata_query=None):
         self.support = support
         self.support_seq_len = support_seq_len
         self.query = query
         self.query_seq_len = query_seq_len
+        self.metadata_support = metadata_support
+        self.metdata_query = metdata_query
 
 
 class SQSampler(object):
@@ -62,6 +65,36 @@ class EpisodeSampler(object):
     def __repr__(self):
         return 'EpisodeSampler("%s", "%s")' % (self.root, self.split)
 
+    def get_artists_episode(self, artists):
+        batch_size = len(artists)
+        support = np.zeros(
+            (batch_size, self.support_size, self.max_len), dtype=self.dtype)
+        support_seq_len = np.zeros(
+            (batch_size, self.support_size), dtype=self.dtype)
+        query = np.zeros(
+            (batch_size, self.query_size, self.max_len), dtype=self.dtype)
+        query_seq_len = np.zeros(
+            (batch_size, self.query_size), dtype=self.dtype)
+
+        metadata_support = {}
+        metadata_query = {}
+        for batch_index, artist in enumerate(artists):
+            query_songs, support_songs = self.sq_sampler.sample(artist)
+            metadata_support[artist.name] = support_songs.tolist()
+            metadata_query[artist.name] = query_songs.tolist()
+
+            for support_index, song in enumerate(support_songs):
+                parsed_song, parsed_len = self.dataset.load(artist.name, song)
+                support[batch_index, support_index, :] = parsed_song
+                support_seq_len[batch_index, support_index] = parsed_len
+            for query_index, song in enumerate(query_songs):
+                parsed_song, parsed_len = self.dataset.load(artist.name, song)
+                query[batch_index, query_index, :] = parsed_song
+                query_seq_len[batch_index, query_index] = parsed_len
+
+        return Episode(support, support_seq_len, query, query_seq_len,
+                       metadata_support, metadata_query)
+
     def get_episode(self):
         support = np.zeros(
             (self.batch_size, self.support_size, self.max_len), dtype=self.dtype)
@@ -73,8 +106,14 @@ class EpisodeSampler(object):
             (self.batch_size, self.query_size), dtype=self.dtype)
         artists = self.random.choice(
             self.dataset, size=self.batch_size, replace=False)
+
+        metadata_support = {}
+        metadata_query = {}
         for batch_index, artist in enumerate(artists):
             query_songs, support_songs = self.sq_sampler.sample(artist)
+            metadata_support[artist.name] = support_songs.tolist()
+            metadata_query[artist.name] = query_songs.tolist()
+
             for support_index, song in enumerate(support_songs):
                 parsed_song, parsed_len = self.dataset.load(artist.name, song)
                 support[batch_index, support_index, :] = parsed_song
@@ -83,7 +122,9 @@ class EpisodeSampler(object):
                 parsed_song, parsed_len = self.dataset.load(artist.name, song)
                 query[batch_index, query_index, :] = parsed_song
                 query_seq_len[batch_index, query_index] = parsed_len
-        return Episode(support, support_seq_len, query, query_seq_len)
+
+        return Episode(support, support_seq_len, query, query_seq_len,
+                       metadata_support, metadata_query)
 
     def get_num_unique_words(self):
         return self.dataset.loader.get_num_tokens()
