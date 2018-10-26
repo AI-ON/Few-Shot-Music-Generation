@@ -6,7 +6,7 @@ import yaml
 from tqdm import tqdm
 from importlib import import_module
 
-from data.episode import load_sampler_from_config
+from data.episode import load_all_samplers_from_config
 
 PP = pprint.PrettyPrinter(depth=6)
 LOG_FILE = 'status.log'
@@ -87,12 +87,18 @@ def main():
     print('Config:')
     print(PP.pformat(config))
 
+    episode_sampler = load_all_samplers_from_config(config)
+    """
     episode_sampler = {}
     for split in config['splits']:
         config['split'] = split
         episode_sampler[split] = load_sampler_from_config(config)
+    """
 
     config['input_size'] = episode_sampler['train'].get_num_unique_words()
+    config['unk_token'] = episode_sampler['train'].get_unk_token()
+    config['start_token'] = episode_sampler['train'].get_start_token()
+    config['stop_token'] = episode_sampler['train'].get_stop_token()
     if not config['input_size'] > 0:
         raise RuntimeError(
             'error reading data: %d unique tokens processed' % config['input_size'])
@@ -116,8 +122,10 @@ def main():
 
     if args.mode == 'train':
         # Train model and evaluate
+        """
         avg_nll = evaluate(model, episode_sampler['val'], n_val)
         print("Iter: %d, val-nll: %.3e" % (0, avg_nll))
+        """
 
         avg_loss = 0.
         best_val_nll = sys.float_info.max
@@ -141,8 +149,10 @@ def main():
                         if args.checkpt_dir != '':
                             model.save(args.checkpt_dir)
 
-                        patience_iters = min(
-                            config['patience_iters'], patience_iters + 1)
+                        # reset patience
+                        patience_iters = config['patience_iters']
+                        # patience_iters = min(
+                        #    config['patience_iters'], patience_iters + 1)
                     else:
                         patience_iters -= 1
                         print("=> Decreasing patience: %d" % patience_iters)

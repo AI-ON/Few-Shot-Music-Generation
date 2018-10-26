@@ -1,6 +1,6 @@
-name: 'lstm_baseline'
-model_module_name: 'models.lstm_baseline'
-model_class_name: 'LSTMBaseline'
+name: 'lstm_seq2seq'
+model_module_name: 'models.lstm_enc_dec'
+model_class_name: 'LSTMEncDec'
 
 n_train: !!int 60000
 n_decay: !!int 10000
@@ -15,5 +15,10 @@ patience_iters: !!int 7
 max_grad_norm: !!int 5
 batch_size: !!int 5
 embedding_size: !!int 200
-n_layers: !!int 1
+n_layers: !!int 5
 hidden_size: !!int 200
+enc_size: !!int 32
+dropout_p: !!float 0
+stop_grad: !!bool true
+kernel_size: !!int 5
+dropout: !!float 0.1

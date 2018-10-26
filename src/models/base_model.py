@@ -60,9 +60,73 @@ def flatten_first_two_dims(token_array):
     return np.reshape(token_array, (shape[0] * shape[1], shape[2]))
 
 
+def convert_tokens_to_input_and_target(token_array, seq_len_array,
+                                       start_word, end_word,
+                                       flatten_batch=True, x_and_y=True):
+    if token_array.ndim == 3 and flatten_batch:
+        X = flatten_first_two_dims(token_array)
+    else:
+        X = token_array
+
+    if x_and_y:
+        if X.ndim == 2:
+            # Y is X + end_word but have to add an extra column to Y
+            # make sure end_word correctly ends each sequence
+            # in case of maximal sequence length
+            Y = np.copy(X)
+            n_rows = np.shape(X)[0]
+            extra_column = np.zeros((n_rows, 1))
+            Y = np.concatenate([Y, extra_column], axis=1)
+            Y[range(n_rows), seq_len_array.flatten()] = end_word
+
+            # X_new is start_word + X
+            start_word_column = np.full(
+                shape=[n_rows, 1], fill_value=start_word)
+            X_new = np.concatenate([start_word_column, X], axis=1)
+        elif X.ndim == 3:
+            Y = np.copy(X)
+            n_rows, n_cols = np.shape(X)[0], np.shape(X)[1]
+            extra_column = np.zeros((n_rows, n_cols, 1))
+            Y = np.concatenate([Y, extra_column], axis=2)
+            indices_arr = np.indices((n_rows, n_cols))
+            seq_len_array = seq_len_array.flatten()
+            idx1_flat = indices_arr[0].flatten()
+            idx2_flat = indices_arr[1].flatten()
+            Y[idx1_flat, idx2_flat, seq_len_array] = end_word
+
+            start_word_column = np.full(
+                shape=[n_rows, n_cols, 1], fill_value=start_word)
+            X_new = np.concatenate([start_word_column, X], axis=2)
+
+        return X_new, Y
+    """
+    else:
+        if X.ndim == 3:
+            n_rows, n_cols = np.shape(X)[0], np.shape(X)[1]
+            start_word_column = np.full(
+                shape=[n_rows, n_cols, 1], fill_value=start_word)
+            X_new = np.concatenate([start_word_column, X], axis=2)
+
+            Y = np.copy(X_new)
+            x_last_column = np.expand_dims(X[:, :, -1], 2)
+            # print(Y.shape)
+            # print(x_last_column.shape)
+            Y = np.concatenate([Y, x_last_column], axis=2)
+
+            n_rows, n_cols = np.shape(X)[0], np.shape(X)[1]
+            indices_arr = np.indices((n_rows, n_cols))
+            seq_len_array = (seq_len_array + 1).flatten()
+            idx1_flat = indices_arr[0].flatten()
+            idx2_flat = indices_arr[1].flatten()
+            Y[idx1_flat, idx2_flat, seq_len_array] = end_word
+
+            return Y
+    """
+
+"""
 def convert_tokens_to_input_and_target(token_array, start_word=None,
                                        flatten_batch=True):
-    """Convert token_array to input and target to use for model for
+    Convert token_array to input and target to use for model for
     sequence generation.
 
     If start_word is given, add to start of each sequence of tokens.
@@ -79,7 +143,7 @@ def convert_tokens_to_input_and_target(token_array, start_word=None,
             b. [B,S,N] if token_array is [B,S,N] and flatten_batch=False
             c. [S,N] if token_array is [S,N]
         Y (numpy int array): output tokens of same size as X_new
-    """
+
     if token_array.ndim == 3 and flatten_batch:
         X = flatten_first_two_dims(token_array)
     else:
@@ -105,3 +169,4 @@ def convert_tokens_to_input_and_target(token_array, start_word=None,
             X_new = np.concatenate([start_word_column, X[:, :, :-1]], axis=2)
 
     return X_new, Y
+"""
