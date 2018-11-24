@@ -3,7 +3,6 @@ model_module_name: 'models.lstm_baseline'
 model_class_name: 'LSTMBaseline'
 
 n_train: !!int 60000
-n_decay: !!int 10000
 print_every_n: !!int 100
 val_every_n: !!float 1000
 n_val: !!int 600
@@ -17,3 +16,4 @@ batch_size: !!int 5
 embedding_size: !!int 200
 n_layers: !!int 1
 hidden_size: !!int 200
+use_sentinel: !!bool false

@@ -11,22 +11,22 @@ class LSTMCell(tf.contrib.rnn.BasicLSTMCell):
 
     def __init__(self, n, input_size, num_units, weights=None,
                  state_is_tuple=True, forget_bias=1):
-        n = str(n)
+        self._n = str(n)
         self._num_units = num_units = num_units
         self._state_is_tuple = state_is_tuple
         self._forget_bias = forget_bias
 
         if weights is None:
             self._kernel = tf.get_variable(
-                sep(n, "kernel"),
+                sep(self._n, "kernel"),
                 shape=[input_size + num_units, 4 * num_units])
             self._bias = tf.get_variable(
-                sep(n, "bias"),
+                sep(self._n, "bias"),
                 shape=[4 * num_units],
                 initializer=tf.constant_initializer(0.0))
         else:
-            self._kernel = weights[sep(n, "kernel")]
-            self._bias = weights[sep(n, "bias")]
+            self._kernel = weights[sep(self._n, "kernel")]
+            self._bias = weights[sep(self._n, "bias")]
 
         self._forget_bias_tensor = tf.constant(
             self._forget_bias, dtype=tf.float32)

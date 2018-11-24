@@ -27,13 +27,22 @@ def write_seq(seq, dir, name):
         seq.write(os.path.join(dir, name + '.mid'))
 
 
-def evaluate(model, episode_sampler, n_episodes):
+def evaluate_nll(model, episode_sampler, n_episodes):
     avg_nll = 0.
     for i in range(n_episodes):
         episode = episode_sampler.get_episode()
         avg_nll += model.eval(episode)
 
     return avg_nll / n_episodes
+
+
+def evaluate_ndcg(model, episode_sampler, n_episodes):
+    avg_ndcg = 0.
+    for i in range(n_episodes):
+        episode = episode_sampler.get_episode_with_other_artists()
+        avg_ndcg += model.eval_ndcg(episode)
+
+    return avg_ndcg / n_episodes
 
 
 def write_samples(model, episode_sampler, samples_dir, n_samples, max_len):
@@ -68,6 +77,8 @@ parser = argparse.ArgumentParser(description='Train a model.')
 parser.add_argument('--data', dest='data', default='')
 parser.add_argument('--model', dest='model', default='')
 parser.add_argument('--task', dest='task', default='')
+# parser.add_argument(
+#    '--use_negative_episodes', dest='use_negative_episodes', default=False)
 parser.add_argument('--checkpt_dir', dest='checkpt_dir', default='')
 parser.add_argument('--init_dir', dest='init_dir', default='')
 parser.add_argument('--mode', dest='mode', default='train')
@@ -82,6 +93,7 @@ def main():
     config = yaml.load(open(args.data, 'r'))
     config.update(yaml.load(open(args.task, 'r')))
     config.update(yaml.load(open(args.model, 'r')))
+    # config['use_negative_episodes'] = args.use_negative_episodes
     config['dataset_path'] = os.path.abspath(config['dataset_path'])
     config['checkpt_dir'] = args.checkpt_dir
     print('Config:')
@@ -122,10 +134,12 @@ def main():
 
     if args.mode == 'train':
         # Train model and evaluate
-        """
-        avg_nll = evaluate(model, episode_sampler['val'], n_val)
+        avg_nll = evaluate_nll(model, episode_sampler['val'], n_val)
         print("Iter: %d, val-nll: %.3e" % (0, avg_nll))
-        """
+        episode_sampler['val'].reset_seed()
+        avg_ndcg = evaluate_ndcg(model, episode_sampler['val'], n_val)
+        print("Iter: %d, val-ndcg: %.3e" % (0, avg_ndcg))
+        episode_sampler['test'].reset_seed()
 
         avg_loss = 0.
         best_val_nll = sys.float_info.max
@@ -139,8 +153,9 @@ def main():
                 avg_loss = 0.
 
             if i % val_every_n == 0:
-                avg_nll = evaluate(model, episode_sampler['val'], n_val)
+                avg_nll = evaluate_nll(model, episode_sampler['val'], n_val)
                 print("Iter: %d, val-nll: %.3e" % (i, avg_nll))
+                episode_sampler['val'].reset_seed()
 
                 if save_best_val:
                     if avg_nll < best_val_nll:
@@ -168,13 +183,27 @@ def main():
             print("=> Loading winner on validation set")
             model.recover_or_init(args.checkpt_dir)
 
-    # Evaluate model after training on training, validation, and test sets
-    avg_nll = evaluate(model, episode_sampler['train'], n_test)
+    # Evaluate model NLL on training, validation, and test sets
+    episode_sampler['train'].reset_seed()
+    avg_nll = evaluate_nll(model, episode_sampler['train'], n_test)
     print("Train Avg NLL: %.3e" % (avg_nll))
-    avg_nll = evaluate(model, episode_sampler['val'], n_test)
+    episode_sampler['val'].reset_seed()
+    avg_nll = evaluate_nll(model, episode_sampler['val'], n_test)
     print("Validation Avg NLL: %.3e" % (avg_nll))
-    avg_nll = evaluate(model, episode_sampler['test'], n_test)
+    episode_sampler['test'].reset_seed()
+    avg_nll = evaluate_nll(model, episode_sampler['test'], n_test)
     print("Test Avg NLL: %.3e" % (avg_nll))
+
+    # Evaluate model ndcg
+    episode_sampler['train'].reset_seed()
+    avg_ndcg = evaluate_ndcg(model, episode_sampler['train'], n_test)
+    print("Train Avg ndcg: %.3e" % (avg_ndcg))
+    episode_sampler['val'].reset_seed()
+    avg_ndcg = evaluate_ndcg(model, episode_sampler['val'], n_test)
+    print("Validation Avg ndcg: %.3e" % (avg_ndcg))
+    episode_sampler['test'].reset_seed()
+    avg_ndcg = evaluate_ndcg(model, episode_sampler['test'], n_test)
+    print("Test Avg ndcg: %.3e" % (avg_ndcg))
 
     # Generate samples from trained model for test episodes
     if args.checkpt_dir != '':

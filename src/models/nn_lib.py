@@ -1,5 +1,7 @@
 import tensorflow as tf
+import numpy as np
 from models.lstm_cell import LSTMCell
+from models.lstm_film_cell import LSTMFilmCell
 
 
 def num_stable_log(probs, eps=1e-7):
@@ -8,12 +10,18 @@ def num_stable_log(probs, eps=1e-7):
 
 
 def make_cell(n, embd_size, hidden_size):
+    """Get LSTM cell."""
     """
     # Use Tensorflow Cell
     return tf.contrib.rnn.BasicLSTMCell(
         self._hidden_size, forget_bias=1., state_is_tuple=True)
     """
     return LSTMCell(n, embd_size, hidden_size)
+
+
+def make_cell_film(n, embd_size, cond_size, hidden_size):
+    """Get LSTM FILM-based cell."""
+    return LSTMFilmCell(n, embd_size, cond_size, hidden_size)
 
 
 def seq_loss(logits, Y, seq_length, time_steps,
@@ -53,6 +61,30 @@ def LSTM(cell,
     return outputs, state
 
 
+def LSTMFilm(cell,
+             onehot_X,
+             embedding,
+             seq_length,
+             batch_size,
+             initial_state,
+             cond,
+             scope="",
+             reuse=False):
+
+    # [batch_size, time_step, embd_size]
+    inputs = tf.nn.embedding_lookup(embedding, onehot_X)
+
+    # outputs: [batch_size, time_step, hidden_size]
+    # state: [batch_size, hidden_size]
+    with tf.variable_scope(scope, reuse=reuse):
+        outputs, state = tf.nn.dynamic_rnn(
+            cell, (inputs, cond), initial_state=initial_state,
+            sequence_length=seq_length
+        )
+
+    return outputs, state
+
+
 def get_logits(hidden_states, emb_matrix, hidden_size):
     hidden_states = tf.reshape(hidden_states, [-1, hidden_size])
     return tf.matmul(hidden_states, emb_matrix, transpose_b=True)
@@ -61,9 +93,11 @@ def get_logits(hidden_states, emb_matrix, hidden_size):
 def masked_softmax(logits, mask):
     """Masked softmax over dim 1.
 
-    :param logits: (N, L)
-    :param mask: (N, L)
-    :return: probabilities (N, L)
+    Args:
+        logits: (N, L)
+        mask: (N, L)
+    Returns:
+        probabilities (N, L)
     """
     indices = tf.where(mask)
     values = tf.gather_nd(logits, indices)
@@ -88,19 +122,21 @@ def get_seq_mask(size, time_steps):
         matrices, the t^th row is only True for the previous (t-1) entries
     """
     # [time_steps]
-    lengths = tf.range(start=0, limit=time_steps, delta=1, dtype=tf.int32)
+    lengths = tf.range(time_steps, dtype=tf.int32)
     # [time_steps, time_steps]
     M = tf.sequence_mask(lengths, time_steps)
     # [size, time_steps, time_steps]
     M = tf.tile(tf.expand_dims(M, 0), [size, 1, 1])
 
+    # [size*time_steps, time_steps]
     M = tf.reshape(M, [-1, time_steps])
     return M
 
 
 def get_sentinel_prob(X, hidden_states, size,
-                      time_steps, hidden_size, input_size):
-    """Get probability according to sentinel distribution.
+                      time_steps, hidden_size, input_size,
+                      embd_size=None):
+    """Get probability according to pointer-sentinel mixture model.
 
     Args:
         X: [size, time_steps] tensor
@@ -109,9 +145,12 @@ def get_sentinel_prob(X, hidden_states, size,
         time_steps: size of 2nd dimension of X
         hidden_size: size of hidden units
         input_size: size of output units
+        cond: [size, embd_size]
     Returns:
         prob_b: [size, time_steps, 1] tensor
         prob_sentinel: [size, time_steps, input_size] tensor
+    Reference:
+        https://arxiv.org/abs/1609.07843
     """
     queryW = tf.get_variable(
         'queryW', [hidden_size, hidden_size])
@@ -120,10 +159,20 @@ def get_sentinel_prob(X, hidden_states, size,
     queryS = tf.get_variable(
         'queryS', [hidden_size, 1])
 
-    # [size*time_steps, hidden_size]
-    query = tf.nn.tanh(tf.matmul(hidden_states, queryW) + queryb)
+    # [size, time_steps, hidden_size]
+    hidden_states_r = tf.reshape(
+        hidden_states, [size, time_steps, hidden_size])
+    # [size, time_steps, hidden_size]
+    queryW = tf.tile(tf.expand_dims(queryW, 0), [size, 1, 1])
+    query = tf.nn.tanh(tf.matmul(hidden_states_r, queryW) + queryb)
+    # [size, time_steps, hidden_size] * [size, hidden_size, time_steps]
+    # = [size, time_steps, time_steps]
+    alpha = tf.matmul(query, tf.transpose(hidden_states_r, [0, 2, 1]))
     # [size*time_steps, time_steps]
-    alpha = tf.matmul(query, tf.transpose(hidden_states))
+    alpha = tf.reshape(alpha, [-1, time_steps])
+    # [size*time_steps, hidden_size]
+    query = tf.reshape(query, [-1, hidden_size])
+
     # [size*time_steps, 1]
     g = tf.matmul(query, queryS)
     # [size*time_steps, time_steps + 1]
@@ -142,19 +191,38 @@ def get_sentinel_prob(X, hidden_states, size,
     )
 
     # [size*time_steps, time_steps]
-    prob_sentinel = tf.slice(
+    prob_ptr = tf.slice(
         prob_with_g, [0, 0], [-1, time_steps])
     # [size*time_steps, 1]
     prob_g = tf.slice(
         prob_with_g, [0, time_steps], [-1, 1])
-    prob_sentinel = tf.divide(prob_sentinel, 1. - prob_g + 1e-3)
     prob_g = tf.reshape(prob_g, [size, time_steps, 1])
-    prob_sentinel = tf.reshape(
-        prob_sentinel, [size, time_steps, time_steps])
+    prob_ptr = tf.reshape(
+        prob_ptr, [size, time_steps, time_steps])
 
     # [size, time_steps, time_steps] * [size, time_steps, input_size]
     # [size, time_steps, input_size]
     onehot_X = tf.one_hot(X, input_size)
-    prob_sentinel = tf.matmul(prob_sentinel, onehot_X)
+    prob_ptr = tf.matmul(prob_ptr, onehot_X)
 
-    return prob_g, prob_sentinel
+    return prob_g, prob_ptr
+
+
+def get_ndcg(rel_scores, neg_logs, rank_position):
+    """Compute NDCG metric for neg log rankings of songs by a model.
+
+    Given relevancy scores of songs, model negative log likelihoods of songs,
+    and the rank position at which to evaluate, compute NDCG.
+    [https://en.wikipedia.org/wiki/Discounted_cumulative_gain]
+    """
+    p = rank_position
+    _, sorted_rel_scores = (
+        list(t) for t in zip(*sorted(zip(neg_logs, rel_scores))))
+
+    idxs = np.array(range(1, len(sorted_rel_scores) + 1))
+    dcg = np.sum(sorted_rel_scores[:p] / np.log2(idxs[:p] + 1))
+
+    ideal_scores = sorted(rel_scores, reverse=True)
+    idcg = np.sum(ideal_scores[:p] / np.log2(idxs[:p] + 1))
+
+    return dcg / idcg
