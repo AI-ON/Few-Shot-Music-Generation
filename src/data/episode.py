@@ -15,13 +15,16 @@ logging.basicConfig(level=logging.INFO)
 
 class Episode(object):
     def __init__(self, support, support_seq_len, query, query_seq_len,
-                 metadata_support=None, metdata_query=None):
+                 other_query=None, other_query_seq_len=None,
+                 metadata_support=None, metadata_query=None):
         self.support = support
         self.support_seq_len = support_seq_len
         self.query = query
         self.query_seq_len = query_seq_len
+        self.other_query = other_query
+        self.other_query_seq_len = other_query_seq_len
         self.metadata_support = metadata_support
-        self.metdata_query = metdata_query
+        self.metadata_query = metadata_query
 
 
 class SQSampler(object):
@@ -40,11 +43,22 @@ class SQSampler(object):
     def sample(self, artist):
         sample = self.random.choice(
             artist,
-            size=self.support_size+self.query_size,
+            size=self.support_size + self.query_size,
             replace=False)
         query = sample[:self.query_size]
         support = sample[self.query_size:]
         return query, support
+
+    def sample_from_artists(self, artists, n):
+        ret = []
+        for artist in artists:
+            sample = self.random.choice(
+                artist,
+                size=n,
+                replace=False)
+            ret += sample.tolist()
+
+        return ret
 
 
 class EpisodeSampler(object):
@@ -56,14 +70,21 @@ class EpisodeSampler(object):
         self.query_size = query_size
         self.max_len = max_len
         self.dtype = dtype
-        self.random = get_random(seed)
+        self.seed = seed
+        self.random = get_random(self.seed)
         self.sq_sampler = SQSampler(support_size, query_size, self.random)
+        self.dataset.random = self.random
 
     def __len__(self):
         return len(self.data)
 
     def __repr__(self):
         return 'EpisodeSampler("%s", "%s")' % (self.root, self.split)
+
+    def reset_seed(self):
+        self.random = get_random(self.seed)
+        self.sq_sampler.random = self.random
+        self.dataset.random = self.random
 
     def get_artists_episode(self, artists):
         batch_size = len(artists)
@@ -93,11 +114,13 @@ class EpisodeSampler(object):
                 query_seq_len[batch_index, query_index] = parsed_len
 
         return Episode(support, support_seq_len, query, query_seq_len,
-                       metadata_support, metadata_query)
+                       metadata_support=metadata_support,
+                       metadata_query=metadata_query)
 
     def get_episode(self):
         support = np.zeros(
-            (self.batch_size, self.support_size, self.max_len), dtype=self.dtype)
+            (self.batch_size, self.support_size, self.max_len),
+            dtype=self.dtype)
         support_seq_len = np.zeros(
             (self.batch_size, self.support_size), dtype=self.dtype)
         query = np.zeros(
@@ -124,6 +147,60 @@ class EpisodeSampler(object):
                 query_seq_len[batch_index, query_index] = parsed_len
 
         return Episode(support, support_seq_len, query, query_seq_len,
+                       metadata_support=metadata_support,
+                       metadata_query=metadata_query)
+
+    def get_episode_with_other_artists(self):
+        support = np.zeros(
+            (self.batch_size, self.support_size, self.max_len),
+            dtype=self.dtype)
+        support_seq_len = np.zeros(
+            (self.batch_size, self.support_size), dtype=self.dtype)
+        query = np.zeros(
+            (self.batch_size, self.query_size, self.max_len), dtype=self.dtype)
+        query_seq_len = np.zeros(
+            (self.batch_size, self.query_size), dtype=self.dtype)
+        other_query = np.zeros(
+            (self.batch_size, self.query_size, self.max_len), dtype=self.dtype)
+        other_query_seq_len = np.zeros(
+            (self.batch_size, self.query_size), dtype=self.dtype)
+        artists = self.random.choice(
+            self.dataset, size=self.batch_size, replace=False)
+
+        metadata_support = {}
+        metadata_query = {}
+        for batch_index, artist in enumerate(artists):
+            query_songs, support_songs = self.sq_sampler.sample(artist)
+            metadata_support[artist.name] = support_songs.tolist()
+            metadata_query[artist.name] = query_songs.tolist()
+
+            for support_index, song in enumerate(support_songs):
+                parsed_song, parsed_len = self.dataset.load(artist.name, song)
+                support[batch_index, support_index, :] = parsed_song
+                support_seq_len[batch_index, support_index] = parsed_len
+            for query_index, song in enumerate(query_songs):
+                parsed_song, parsed_len = self.dataset.load(artist.name, song)
+                query[batch_index, query_index, :] = parsed_song
+                query_seq_len[batch_index, query_index] = parsed_len
+
+            other_artists = self.random.choice(
+                self.dataset, size=self.query_size + 1, replace=False)
+            other_artists = other_artists.tolist()
+            if artist in other_artists:
+                other_artists.remove(artist)
+
+            other_artists = other_artists[:self.query_size]
+            other_songs = self.sq_sampler.sample_from_artists(other_artists, 1)
+
+            other_artists_and_songs = zip(other_artists, other_songs)
+            for index, (other_artist, song) in enumerate(other_artists_and_songs):
+                parsed_song, parsed_len = self.dataset.load(
+                    other_artist.name, song)
+                other_query[batch_index, index, :] = parsed_song
+                other_query_seq_len[batch_index, index] = parsed_len
+
+        return Episode(support, support_seq_len, query, query_seq_len,
+                       other_query, other_query_seq_len,
                        metadata_support, metadata_query)
 
     def get_num_unique_words(self):
